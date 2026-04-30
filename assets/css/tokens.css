@@ -1,0 +1,112 @@
+:root {
+  /* ── Action ────────────────────────────────── */
+  --color-action-primary: #5D37F5;
+  --color-action-primary-hover: #7152E0;
+  --color-action-primary-active: #1A043B;
+  --color-action-primary-subtle: #EDE9FE;
+  --color-action-blue: #2D6BFF;
+  --color-action-blue-hover: #1A5AED;
+
+  /* ── Brand ─────────────────────────────────── */
+  --color-brand-accent-50: #C6EF54;
+  --color-brand-accent-100: #B4DF3C;
+  --color-brand-accent-200: #9CC828;
+
+  /* ── Neutrals ──────────────────────────────── */
+  --color-neutral-0:   #FFFFFF;
+  --color-neutral-50:  #F9FAFB;
+  --color-neutral-100: #F3F4F6;
+  --color-neutral-150: #EAECF0;
+  --color-neutral-200: #E5E7EB;
+  --color-neutral-300: #D1D5DB;
+  --color-neutral-400: #9CA3AF;
+  --color-neutral-500: #6B7280;
+  --color-neutral-600: #4B5563;
+  --color-neutral-700: #374151;
+  --color-neutral-800: #1F2937;
+  --color-neutral-900: #111827;
+  --color-neutral-950: #030712;
+
+  /* ── Success ───────────────────────────────── */
+  --color-success-soft-bg:     #ECFDF5;
+  --color-success-soft-border: #A7F3D0;
+  --color-success-soft-text:   #065F46;
+  --color-success-solid-bg:    #10B981;
+  --color-success-solid-text:  #FFFFFF;
+
+  /* ── Warning ───────────────────────────────── */
+  --color-warning-soft-bg:     #FFFBEB;
+  --color-warning-soft-border: #FDE68A;
+  --color-warning-soft-text:   #92400E;
+  --color-warning-solid-bg:    #F59E0B;
+  --color-warning-solid-text:  #FFFFFF;
+
+  /* ── Danger ────────────────────────────────── */
+  --color-danger-soft-bg:     #FEF2F2;
+  --color-danger-soft-border: #FECACA;
+  --color-danger-soft-text:   #991B1B;
+  --color-danger-solid-bg:    #EF4444;
+  --color-danger-solid-text:  #FFFFFF;
+
+  /* ── Info ──────────────────────────────────── */
+  --color-info-soft-bg:     #EFF6FF;
+  --color-info-soft-border: #BFDBFE;
+  --color-info-soft-text:   #1E40AF;
+  --color-info-solid-bg:    #3B82F6;
+  --color-info-solid-text:  #FFFFFF;
+
+  /* ── Layout ────────────────────────────────── */
+  --sidebar-width: 240px;
+  --header-height: 60px;
+
+  /* ── Shadows ───────────────────────────────── */
+  --shadow-xs:  0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm:  0 1px 3px 0 rgb(0 0 0 / 0.10), 0 1px 2px -1px rgb(0 0 0 / 0.10);
+  --shadow-md:  0 4px 6px -1px rgb(0 0 0 / 0.10), 0 2px 4px -2px rgb(0 0 0 / 0.10);
+  --shadow-lg:  0 10px 15px -3px rgb(0 0 0 / 0.10), 0 4px 6px -4px rgb(0 0 0 / 0.10);
+  --shadow-xl:  0 20px 25px -5px rgb(0 0 0 / 0.10), 0 8px 10px -6px rgb(0 0 0 / 0.10);
+
+  /* ── Radius ────────────────────────────────── */
+  --radius-xs:  2px;
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-2xl: 24px;
+  --radius-full: 9999px;
+
+  /* ── Spacing ───────────────────────────────── */
+  --spacing-1:  4px;
+  --spacing-2:  8px;
+  --spacing-3:  12px;
+  --spacing-4:  16px;
+  --spacing-5:  20px;
+  --spacing-6:  24px;
+  --spacing-8:  32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+
+  /* ── Transitions ───────────────────────────── */
+  --transition-fast:   150ms ease;
+  --transition-base:   200ms ease;
+  --transition-slow:   300ms ease;
+
+  /* ── Background ─────────────────────────────── */
+  --color-background-surface: #FFFFFF;
+
+  /* ── Sidebar ────────────────────────────────── */
+  --sidebar-gradient:      linear-gradient(180deg, #2FC2D6 0%, #1B45A3 50%, #0B1F47 100%);
+  --sidebar-width:         300px;
+  --sidebar-width-min:     64px;
+  --sidebar-label:         rgba(255, 255, 255, 0.40);
+  --sidebar-item-text:     rgba(255, 255, 255, 0.80);
+  --sidebar-item-hover:    rgba(255, 255, 255, 0.08);
+  --sidebar-active-bg:     #3DD6CF;
+  --sidebar-active-text:   #091660;
+  --sidebar-divider:       rgba(255, 255, 255, 0.15);
+  --sidebar-footer-text:   rgba(255, 255, 255, 0.45);
+  --sidebar-toggle-bg:     var(--color-action-blue);
+  --sidebar-toggle-border: var(--color-background-surface);
+  --sidebar-logo-accent:   #3DD6CF;
+}
