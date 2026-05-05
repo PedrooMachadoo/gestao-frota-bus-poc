@@ -55,14 +55,17 @@ function isTabActive(to: string) {
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.25);
   width: 100%;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1000;
 }
 
 /* ── Title row ───────────────────────────────────────── */
 .page-header__title-row {
   display: flex;
   align-items: center;
-  padding: 20px;
-  min-height: 74px;
+  padding: 0 20px;
+  height: 56px;
+  flex-shrink: 0;
 }
 
 .page-header__title {
@@ -70,7 +73,7 @@ function isTabActive(to: string) {
   font-family: 'Inter', sans-serif;
   font-size: 36px;
   font-weight: 700;
-  line-height: 44px;
+  line-height: 1;
   letter-spacing: -0.16px;
   color: #1E1E1E;
   white-space: nowrap;
@@ -84,7 +87,7 @@ function isTabActive(to: string) {
   align-items: stretch;
   gap: 10px;
   padding: 0 20px;
-  height: 40px;
+  height: 36px;
   background: var(--color-neutral-0);
   border-bottom: 1px solid var(--color-neutral-200);
 }
@@ -92,7 +95,7 @@ function isTabActive(to: string) {
 .page-header__tab {
   display: inline-flex;
   align-items: center;
-  padding: 0 16px;
+  padding: 0 12px;
   height: 100%;
   font-family: 'Inter', sans-serif;
   font-size: 14px;
@@ -101,14 +104,12 @@ function isTabActive(to: string) {
   color: #7A7A7A;
   text-decoration: none;
   border-bottom: 2px solid transparent;
-  margin-bottom: -1px; /* overlap the row border-bottom */
+  margin-bottom: -1px;
   transition: color var(--transition-fast), border-color var(--transition-fast);
   white-space: nowrap;
   flex-shrink: 0;
 }
-.page-header__tab:hover {
-  color: #171717;
-}
+.page-header__tab:hover { color: #171717; }
 .page-header__tab.page-header__tab--active {
   color: #171717;
   border-bottom-color: var(--color-action-primary) !important;
@@ -119,8 +120,8 @@ function isTabActive(to: string) {
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 68px;
-  padding: 8px 20px;
+  height: 52px;
+  padding: 6px 20px;
   background: var(--color-neutral-0);
 }
 </style>

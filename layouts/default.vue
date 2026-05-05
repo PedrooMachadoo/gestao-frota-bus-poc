@@ -74,6 +74,8 @@ function isActive(to: string) {
   return route.path === to || route.path.startsWith(to + '/')
 }
 
+const isPlanejamentoActive = computed(() => isActive('/linhas') || isActive('/pontos'))
+
 function selectEmpresa(name: string) {
   selectedEmpresa.value = name
   empresaOpen.value = false
@@ -91,7 +93,7 @@ function onClickOutside(e: MouseEvent) {
 onMounted(() => {
   document.addEventListener('click', onClickOutside)
   document.addEventListener('click', onFlyoutOutside)
-  if (isActive('/linhas')) planejamentoOpen.value = true
+  if (isActive('/linhas') || isActive('/pontos')) planejamentoOpen.value = true
 })
 onUnmounted(() => {
   document.removeEventListener('click', onClickOutside)
@@ -165,15 +167,15 @@ onUnmounted(() => {
           <!-- Planejamento dropdown -->
           <button
             class="sidebar__bus-item"
-            :class="{ 'sidebar__bus-item--open': planejamentoOpen && sidebarOpen, 'sidebar__bus-item--icon-active': !sidebarOpen && isActive('/linhas') }"
+            :class="{ 'sidebar__bus-item--open': (planejamentoOpen || isPlanejamentoActive) && sidebarOpen, 'sidebar__bus-item--icon-active': !sidebarOpen && isPlanejamentoActive }"
             :data-tooltip="!sidebarOpen && !flyout ? 'Planejamento' : undefined"
-            @click="sidebarOpen ? (planejamentoOpen = !planejamentoOpen) : openFlyout($event, { label: 'Planejamento', items: [{ label: 'Linha', to: '/linhas' }] })"
+            @click="sidebarOpen ? (planejamentoOpen = !planejamentoOpen) : openFlyout($event, { label: 'Planejamento', items: [{ label: 'Linha', to: '/linhas' }, { label: 'Ponto de Parada', to: '/pontos' }] })"
           >
             <span
               class="s-icon"
               :class="{
-                's-icon--on-active': planejamentoOpen && sidebarOpen,
-                's-icon--standalone-active': !sidebarOpen && isActive('/linhas')
+                's-icon--on-active': (planejamentoOpen || isPlanejamentoActive) && sidebarOpen,
+                's-icon--standalone-active': !sidebarOpen && isPlanejamentoActive
               }"
             >
               <LayoutGrid :size="15" />
@@ -184,7 +186,7 @@ onUnmounted(() => {
               v-if="sidebarOpen"
               :size="11"
               class="s-chevron"
-              :class="{ 's-chevron--active': planejamentoOpen }"
+              :class="{ 's-chevron--active': planejamentoOpen || isPlanejamentoActive }"
             />
           </button>
 
@@ -196,6 +198,13 @@ onUnmounted(() => {
                 :class="{ 'sidebar__sub-item--active': isActive('/linhas') }"
               >
                 Linha
+              </NuxtLink>
+              <NuxtLink
+                to="/pontos"
+                class="sidebar__sub-item"
+                :class="{ 'sidebar__sub-item--active': isActive('/pontos') }"
+              >
+                Ponto de Parada
               </NuxtLink>
             </div>
           </Transition>
@@ -351,7 +360,7 @@ onUnmounted(() => {
 .sidebar-toggle {
   position: absolute;
   top: 16px;
-  z-index: 200;
+  z-index: 1100;
   width: 22px;
   height: 22px;
   border-radius: 6px;

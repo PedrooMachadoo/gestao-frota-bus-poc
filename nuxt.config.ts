@@ -7,6 +7,7 @@ export default defineNuxtConfig({
   css: [
     '~/assets/css/tokens.css',
     '~/assets/css/global.css',
+    'leaflet/dist/leaflet.css',
   ],
 
   typescript: {
