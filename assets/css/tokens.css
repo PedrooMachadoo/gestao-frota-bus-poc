@@ -87,6 +87,14 @@
   --spacing-12: 48px;
   --spacing-16: 64px;
 
+  /* ── Table Row States ──────────────────────────── */
+  --color-table-row-hover-bg:      #2457D1;
+  --color-table-row-hover-text:    #FFFFFF;
+  --color-table-row-selected-bg:   #1B45A3;
+  --color-table-row-selected-text: #FFFFFF;
+  --color-table-row-disabled-bg:   #F2F2F2;
+  --color-table-row-disabled-text: #7A7A7A;
+
   /* ── Transitions ───────────────────────────── */
   --transition-fast:   150ms ease;
   --transition-base:   200ms ease;

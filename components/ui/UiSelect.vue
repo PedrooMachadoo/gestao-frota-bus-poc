@@ -88,6 +88,7 @@ const isOpen       = ref(false)
 const searchQuery  = ref('')
 const fieldRef     = ref<HTMLElement | null>(null)
 const dropdownStyle = ref<Record<string, string>>({})
+const placement     = ref<'top' | 'bottom'>('bottom')
 
 // ── Computed ──────────────────────────────────────────
 const selectedOption = computed(() =>
@@ -112,9 +113,9 @@ function open() {
     if (!fieldRef.value) return
     const r = fieldRef.value.getBoundingClientRect()
     dropdownStyle.value = {
-      top:      `${r.bottom + 4}px`,
-      left:     `${r.left}px`,
-      width:    `${Math.max(r.width, 200)}px`,
+      top: `${r.bottom + 4}px`,
+      left: `${r.left}px`,
+      width: `${Math.max(r.width, 200)}px`
     }
   })
 }
@@ -140,8 +141,22 @@ function onClickOutside(e: MouseEvent) {
   }
 }
 
-onMounted(() => document.addEventListener('mousedown', onClickOutside))
-onUnmounted(() => document.removeEventListener('mousedown', onClickOutside))
+function onScroll(e: Event) {
+  if (isOpen.value) {
+    const target = e.target as HTMLElement
+    if (target.closest && target.closest('.ui-select-dropdown')) return
+    close()
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('mousedown', onClickOutside)
+  window.addEventListener('scroll', onScroll, true)
+})
+onUnmounted(() => {
+  document.removeEventListener('mousedown', onClickOutside)
+  window.removeEventListener('scroll', onScroll, true)
+})
 </script>
 
 <template>
@@ -358,6 +373,12 @@ onUnmounted(() => document.removeEventListener('mousedown', onClickOutside))
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   max-height: 320px;
   overflow: hidden;
+  transform-origin: top center;
+}
+
+.ui-select-dropdown--top {
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.12);
+  transform-origin: bottom center;
 }
 
 /* ── Search bar ──────────────────────────────────── */
@@ -530,6 +551,10 @@ onUnmounted(() => document.removeEventListener('mousedown', onClickOutside))
 .ui-select-fade-enter-from,
 .ui-select-fade-leave-to {
   opacity: 0;
-  transform: translateY(-4px);
+  transform: translateY(-4px) scaleY(0.98);
+}
+.ui-select-dropdown--top.ui-select-fade-enter-from,
+.ui-select-dropdown--top.ui-select-fade-leave-to {
+  transform: translateY(4px) scaleY(0.98);
 }
 </style>

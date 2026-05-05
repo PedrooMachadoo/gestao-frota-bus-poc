@@ -1,6 +1,7 @@
+import { reactive } from 'vue'
 import type { Line } from '~/types'
 
-export const mockLines: Line[] = [
+export const mockLines = reactive<Line[]>([
   { id: '1',  code: '0A0A00AA000', name: 'Centro – Terminal Norte',     tipoOperacao: 'Urbano',          origin: 'Centro',         destination: 'Terminal Norte',   status: 'active',   vehicleCount: 8, frequency: '15 min' },
   { id: '2',  code: '0A0A00AA000', name: 'Bairro Sul – Aeroporto',      tipoOperacao: 'Metropolitano',   origin: 'Bairro Sul',     destination: 'Aeroporto',        status: 'active',   vehicleCount: 5, frequency: '30 min' },
   { id: '3',  code: '0A0A00AA000', name: 'Terminal Leste – Shopping',   tipoOperacao: 'Urbano',          origin: 'Terminal Leste', destination: 'Shopping Central', status: 'active',   vehicleCount: 6, frequency: '20 min' },
@@ -17,4 +18,4 @@ export const mockLines: Line[] = [
   { id: '14', code: '0A0A00AA000', name: 'Região Portuária – Estação',  tipoOperacao: 'Intermunicipal',  origin: 'Porto',          destination: 'Estação Ferr.',    status: 'active',   vehicleCount: 3, frequency: '45 min' },
   { id: '15', code: '0A0A00AA000', name: 'Campus – Polo Tecnológico',   tipoOperacao: 'Metropolitano',   origin: 'Campus Univ.',   destination: 'Polo Tecnológico', status: 'active',   vehicleCount: 2, frequency: '50 min' },
   { id: '16', code: '0A0A00AA000', name: 'Praça Central – Periferia',   tipoOperacao: 'Urbano',          origin: 'Praça Central',  destination: 'Bairro Periferia', status: 'inactive', vehicleCount: 0, frequency: '—'      },
-]
+])

@@ -26,6 +26,7 @@ defineEmits<{ click: [event: MouseEvent] }>()
     class="ui-btn"
     :class="[`ui-btn--${variant}`, `ui-btn--${size}`, { 'ui-btn--loading': loading }]"
     :disabled="disabled || loading"
+    @click="$emit('click', $event)"
   >
     <!-- Left icon slot -->
     <span v-if="$slots['icon-left'] && !loading" class="ui-btn__icon">

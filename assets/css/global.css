@@ -125,3 +125,154 @@ button {
 input, textarea, select {
   font-family: inherit;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   UiTable — Design System Bus · Tabela (node 7009:2725)
+   ─────────────────────────────────────────────────────────────────────────
+   ESTRUTURA DO DS:
+   • Header: linha BRANCA — cada <th> é um card cinza individual
+     (background neutral-100, border-radius 4px, box-shadow 1px 1px 3px)
+     com espaçamento branco entre eles (via border-spacing: 4px 0)
+   • Dados: linhas brancas transparentes, separadas por border-bottom
+   • Selected (futuro): linha inteira azul sólida
+   • Inactive: texto atenuado
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Table base ──────────────────────────────────────────────────────────── */
+.ui-table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--color-neutral-0);
+}
+
+/* ── Header row — fundo branco, células em card cinza ───────────────────── */
+.ui-table-wrapper thead tr {
+  background: var(--color-neutral-0);
+}
+
+.ui-table-wrapper th {
+  height: 46px;
+  padding: 0 20px;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--color-neutral-800);
+  white-space: nowrap;
+  vertical-align: middle;
+  user-select: none;
+  /* ↓ card individual — DS Table/Header node 7009-2497 */
+  background: var(--color-neutral-100);
+  border-radius: 4px;
+  box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.25);
+  /* ↓ borda branca: 6px cria gap generoso entre cards */
+  border: 6px solid var(--color-neutral-0);
+}
+
+/* Sortable header (futuro) */
+.ui-table-wrapper th.th--sortable {
+  cursor: pointer;
+}
+.ui-table-wrapper th.th--sortable:hover {
+  background: var(--color-neutral-150);
+}
+
+/* Sort indicators (futuro) */
+.ui-table-wrapper th.th--sorted-asc::after,
+.ui-table-wrapper th.th--sorted-desc::after {
+  content: '';
+  display: inline-block;
+  width: 0;
+  height: 0;
+  margin-left: 6px;
+  vertical-align: middle;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+.ui-table-wrapper th.th--sorted-asc::after  { border-bottom: 5px solid var(--color-neutral-600); }
+.ui-table-wrapper th.th--sorted-desc::after { border-top:    5px solid var(--color-neutral-600); }
+
+/* ── Data rows ───────────────────────────────────────────────────────────── */
+.ui-table-wrapper tbody tr {
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.ui-table-wrapper tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* Hover — DS Table/Row State=Hover */
+.ui-table-wrapper tbody tr:hover td {
+  background: var(--color-table-row-hover-bg);
+  color: var(--color-table-row-hover-text);
+  border-bottom-color: var(--color-table-row-hover-bg);
+}
+
+/* Selected — DS Table/Row State=Selected */
+.ui-table-wrapper tbody tr.row--selected td {
+  background: var(--color-table-row-selected-bg);
+  color: var(--color-table-row-selected-text);
+  border-bottom-color: var(--color-table-row-selected-bg);
+}
+.ui-table-wrapper tbody tr.row--selected:hover td {
+  filter: brightness(1.08);
+}
+
+/* Disabled — DS Table/Row State=Disabled (linhas inativas) */
+.ui-table-wrapper tbody tr.row--disabled td,
+.ui-table-wrapper tbody tr.row--inactive td {
+  background: var(--color-table-row-disabled-bg);
+  color: var(--color-table-row-disabled-text);
+}
+.ui-table-wrapper tbody tr.row--disabled:hover td,
+.ui-table-wrapper tbody tr.row--inactive:hover td {
+  background: var(--color-table-row-disabled-bg);
+  color: var(--color-table-row-disabled-text);
+  border-bottom-color: var(--color-neutral-200);
+}
+
+/* Danger (futuro) */
+.ui-table-wrapper tbody tr.row--danger td {
+  background: var(--color-danger-soft-bg);
+}
+
+/* ── Data cells ──────────────────────────────────────────────────────────── */
+.ui-table-wrapper td {
+  height: 52px;
+  padding: 0 24px;
+  color: var(--color-neutral-700);
+  border-bottom: 1px solid var(--color-neutral-150);
+  vertical-align: middle;
+  font-size: 14px;
+  line-height: 20px;
+  background: var(--color-neutral-0);
+  transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+
+/* ── Utilitários de coluna ───────────────────────────────────────────────── */
+
+/* Checkbox column (futuro) */
+.ui-table-wrapper .col-checkbox,
+.ui-table-wrapper th.col-checkbox {
+  width: 40px;
+  padding: 4px;
+  text-align: center;
+}
+
+/* Actions column */
+.ui-table-wrapper .col-actions,
+.ui-table-wrapper th.col-actions {
+  width: 68px;
+  padding: 0 16px;
+  text-align: center;
+}
+
+/* Monospace — código, ID */
+.ui-table-wrapper .cell--mono {
+  font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--color-neutral-400);
+  letter-spacing: 0.02em;
+}
+

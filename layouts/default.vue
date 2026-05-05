@@ -37,6 +37,36 @@ function toggleEmpresa() {
 // nav dropdowns
 const planejamentoOpen = ref(false)
 
+// mini flyout
+interface FlyoutItem { label: string; to: string }
+interface Flyout { label: string; items: FlyoutItem[] }
+const flyout     = ref<Flyout | null>(null)
+const flyoutPos  = ref({ top: '0px', left: '0px' })
+const flyoutBtnRef = ref<HTMLElement | null>(null)
+
+function openFlyout(e: MouseEvent, data: Flyout) {
+  if (sidebarOpen.value) return
+  flyout.value = data
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  flyoutPos.value = {
+    top:  `${r.top}px`,
+    left: `${r.right + 8}px`,
+  }
+  flyoutBtnRef.value = e.currentTarget as HTMLElement
+}
+
+function closeFlyout() {
+  flyout.value = null
+}
+
+function onFlyoutOutside(e: MouseEvent) {
+  if (!flyout.value) return
+  const t = e.target as HTMLElement
+  if (!t.closest('.mini-flyout') && t !== flyoutBtnRef.value && !flyoutBtnRef.value?.contains(t)) {
+    closeFlyout()
+  }
+}
+
 // empresa selected
 const selectedEmpresa = ref('')
 
@@ -60,9 +90,13 @@ function onClickOutside(e: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('click', onClickOutside)
+  document.addEventListener('click', onFlyoutOutside)
   if (isActive('/linhas')) planejamentoOpen.value = true
 })
-onUnmounted(() => document.removeEventListener('click', onClickOutside))
+onUnmounted(() => {
+  document.removeEventListener('click', onClickOutside)
+  document.removeEventListener('click', onFlyoutOutside)
+})
 </script>
 
 <template>
@@ -96,7 +130,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
             ref="empresaBtnRef"
             class="sidebar__empresa"
             :class="{ 'sidebar__empresa--open': empresaOpen }"
-            :title="!sidebarOpen ? (selectedEmpresa || '[Nome Empresa]') : undefined"
+            :data-tooltip="!sidebarOpen ? (selectedEmpresa || 'Empresa') : undefined"
             @click="toggleEmpresa"
           >
             <span class="s-icon" :class="{ 's-icon--on-active': empresaOpen }">
@@ -116,7 +150,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
         <!-- ASSISTENTE -->
         <div class="sidebar__group">
           <span v-if="sidebarOpen" class="sidebar__label">ASSISTENTE</span>
-          <button class="sidebar__item" :title="!sidebarOpen ? 'Mai' : undefined">
+          <button class="sidebar__item" :data-tooltip="!sidebarOpen ? 'Mai' : undefined">
             <span class="s-icon">
               <Bot :size="15" />
             </span>
@@ -132,8 +166,8 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
           <button
             class="sidebar__bus-item"
             :class="{ 'sidebar__bus-item--open': planejamentoOpen && sidebarOpen, 'sidebar__bus-item--icon-active': !sidebarOpen && isActive('/linhas') }"
-            :title="!sidebarOpen ? 'Planejamento' : undefined"
-            @click="sidebarOpen ? (planejamentoOpen = !planejamentoOpen) : undefined"
+            :data-tooltip="!sidebarOpen && !flyout ? 'Planejamento' : undefined"
+            @click="sidebarOpen ? (planejamentoOpen = !planejamentoOpen) : openFlyout($event, { label: 'Planejamento', items: [{ label: 'Linha', to: '/linhas' }] })"
           >
             <span
               class="s-icon"
@@ -170,7 +204,7 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
         <!-- CONFIGURAÇÕES -->
         <div class="sidebar__group">
           <span v-if="sidebarOpen" class="sidebar__label">CONFIGURAÇÕES</span>
-          <button class="sidebar__item" :title="!sidebarOpen ? 'Log' : undefined">
+          <button class="sidebar__item" :data-tooltip="!sidebarOpen ? 'Log' : undefined">
             <span class="s-icon">
               <ScrollText :size="15" />
             </span>
@@ -238,6 +272,30 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
       </Transition>
     </Teleport>
 
+    <!-- Mini flyout menu -->
+    <Teleport to="body">
+      <Transition name="flyout">
+        <div
+          v-if="flyout"
+          class="mini-flyout"
+          :style="flyoutPos"
+        >
+          <div class="mini-flyout__inner">
+            <NuxtLink
+              v-for="item in flyout.items"
+              :key="item.to"
+              :to="item.to"
+              class="mini-flyout__item"
+              :class="{ 'mini-flyout__item--active': isActive(item.to) }"
+              @click="closeFlyout"
+            >
+              {{ item.label }}
+            </NuxtLink>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
     <!-- Main -->
     <main class="main-content">
       <slot />
@@ -265,7 +323,10 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
   transition: width 250ms cubic-bezier(0.4, 0, 0.2, 1);
   overflow: hidden;
 }
-.sidebar--mini { width: var(--sidebar-width-min); }
+.sidebar--mini {
+  width: var(--sidebar-width-min);
+  overflow: visible; /* permite tooltip sair dos limites da sidebar */
+}
 
 /* ── Header / Logo ─────────────────────────────────── */
 .sidebar__header {
@@ -561,6 +622,119 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
 .sidebar__logout:hover { background: rgba(255,255,255,0.08); color: #fff; }
 .sidebar__logout--icon { justify-content: center; padding: 6px; }
 
+/* ── Tooltip (mini mode) ───────────────────────────── */
+.sidebar--mini [data-tooltip] {
+  position: relative;
+}
+
+/* Seta — quadrado rotacionado 45°, mesmo gradiente da caixa
+   Borda só nas arestas visíveis (esquerda + baixo = ponta esquerda do losango) */
+.sidebar--mini [data-tooltip]::before {
+  content: '';
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  transform: translateY(-50%) rotate(45deg) translateX(-4px);
+  background: linear-gradient(225deg, #2FC2D6 0%, #1B45A3 100%);
+  border-left: 1px solid rgba(255, 255, 255, 0.80);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.80);
+  border-radius: 2px 0 2px 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 130ms ease, transform 130ms ease;
+  z-index: 9999;
+}
+
+/* Caixa — cobre a metade direita do quadrado da seta */
+.sidebar--mini [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 15px);
+  top: 50%;
+  transform: translateY(-50%) translateX(-4px);
+  background: linear-gradient(160deg, #2FC2D6 0%, #1B45A3 50%, #0B1F47 100%);
+  border: 1px solid rgba(255, 255, 255, 0.80);
+  color: #FFFFFF;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-family: 'Inter', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 130ms ease, transform 130ms ease;
+  box-shadow:
+    0 6.65px 5.32px rgba(0,0,0,0.05),
+    0 12.52px 10px rgba(0,0,0,0.07),
+    0 22px 18px rgba(0,0,0,0.09),
+    0 40px 33px rgba(0,0,0,0.11),
+    0 80px 64px rgba(0,0,0,0.16);
+  z-index: 10000; /* acima da seta para cobrir sua metade direita */
+}
+
+.sidebar--mini [data-tooltip]:hover::before {
+  opacity: 1;
+  transform: translateY(-50%) rotate(45deg) translateX(0);
+}
+.sidebar--mini [data-tooltip]:hover::after {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+}
+
+/* ── Tooltip — item ATIVO: seta + caixa usam cores teal ── */
+.sidebar--mini .sidebar__bus-item--icon-active[data-tooltip]::before,
+.sidebar--mini .sidebar__empresa--open[data-tooltip]::before {
+  background: var(--sidebar-active-bg);
+  border-left-color: var(--sidebar-active-bg);
+  border-bottom-color: var(--sidebar-active-bg);
+}
+.sidebar--mini .sidebar__bus-item--icon-active[data-tooltip]::after,
+.sidebar--mini .sidebar__empresa--open[data-tooltip]::after {
+  background: var(--sidebar-active-bg);
+  border-color: var(--sidebar-active-bg);
+  color: var(--sidebar-active-text);
+  box-shadow: 0 4px 16px rgba(61, 214, 207, 0.40);
+}
+
+/* ── Mini sidebar overrides ────────────────────────── */
+.sidebar--mini .sidebar__nav {
+  padding: 8px 6px;
+  align-items: center;
+  overflow: visible; /* permite tooltip sair dos limites */
+}
+
+.sidebar--mini .sidebar__group {
+  align-items: center;
+  width: 100%;
+  overflow: visible;
+}
+
+.sidebar--mini .sidebar__item,
+.sidebar--mini .sidebar__empresa,
+.sidebar--mini .sidebar__bus-item {
+  padding: 4px;
+  justify-content: center;
+  width: 100%;
+  overflow: visible; /* essencial para o pseudo-elemento ::after aparecer */
+}
+
+.sidebar--mini .sidebar__footer {
+  padding: 10px 6px;
+  align-items: center;
+  overflow: visible;
+}
+
+.sidebar--mini .sidebar__logout {
+  width: 100%;
+  justify-content: center;
+  padding: 6px 4px;
+  overflow: visible;
+}
+
 /* ── Main ──────────────────────────────────────────── */
 .main-content {
   flex: 1;
@@ -659,4 +833,83 @@ onUnmounted(() => document.removeEventListener('click', onClickOutside))
 /* fade transition */
 .fade-enter-active, .fade-leave-active { transition: opacity 150ms ease, transform 150ms ease; }
 .fade-enter-from, .fade-leave-to { opacity: 0; transform: translateX(-6px); }
+
+/* ── Mini flyout ─────────────────────────────────── */
+.mini-flyout {
+  position: fixed;
+  z-index: 9999;
+}
+
+.mini-flyout__inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.90);
+  background: linear-gradient(160deg, #2FC2D6 0%, #1B45A3 50%, #0B1F47 100%);
+  box-shadow:
+    0 2.77px 2.21px rgba(0,0,0,0.034),
+    0 6.65px 5.32px rgba(0,0,0,0.048),
+    0 12.52px 10.02px rgba(0,0,0,0.06),
+    0 22.34px 17.87px rgba(0,0,0,0.072),
+    0 41.78px 33.42px rgba(0,0,0,0.086),
+    0 100px 80px rgba(0,0,0,0.12);
+  min-width: 160px;
+}
+
+/* Seta esquerda */
+.mini-flyout__inner::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 16px;
+  border: 8px solid transparent;
+  border-right-color: rgba(255,255,255,0.90);
+}
+.mini-flyout__inner::after {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 17px;
+  border: 7px solid transparent;
+  border-right-color: #2FC2D6;
+}
+
+.mini-flyout__item {
+  display: block;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: -0.24px;
+  line-height: 16px;
+  color: rgba(255, 255, 255, 0.90);
+  text-decoration: none;
+  transition: background var(--transition-fast), color var(--transition-fast);
+  white-space: nowrap;
+}
+.mini-flyout__item:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: #fff;
+}
+.mini-flyout__item--active {
+  background: #3FE7FF;
+  color: #171717;
+}
+.mini-flyout__item--active:hover {
+  background: #3FE7FF;
+  color: #171717;
+}
+
+/* flyout transition */
+.flyout-enter-active, .flyout-leave-active {
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+.flyout-enter-from, .flyout-leave-to {
+  opacity: 0;
+  transform: translateX(-6px);
+}
 </style>

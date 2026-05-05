@@ -1,6 +1,38 @@
+<script setup lang="ts">
+/**
+ * UiTable — Design System Bus · Table (7009:2725)
+ *
+ * Wrapper de tabela. Os estilos de thead/th/td/tr vivem em global.css
+ * (namespace .ui-table-wrapper) para garantir que alcancem o slot content.
+ *
+ * ── Estados de linha (DS Table/Row — classe na <tr>): ──────────────────
+ *   .row--selected   → State=Selected (bg azul #1B45A3, texto branco)
+ *   .row--disabled   → State=Disabled (bg cinza #F2F2F2, texto muted)
+ *   .row--inactive   → alias de row--disabled (mesmo visual)
+ *   .row--danger     → alerta de perigo                    [futuro]
+ *   Hover é automático via :hover (bg azul #2457D1, texto branco)
+ *
+ * ── Classes para células: ───────────────────────────────────────────────
+ *   .col-checkbox    → coluna de checkbox (40px)           [futuro]
+ *   .col-actions     → coluna de ações (60px)
+ *   .col-badge       → célula com badge                    [futuro]
+ *   .cell--mono      → fonte monospace (código / ID)
+ *   .cell--muted     → texto atenuado                      [futuro]
+ *   .th--sortable    → cabeçalho ordenável                 [futuro]
+ *   .th--sorted-asc  → ordenado crescente                  [futuro]
+ *   .th--sorted-desc → ordenado decrescente                [futuro]
+ */
+
+withDefaults(defineProps<{
+  scrollable?: boolean
+}>(), {
+  scrollable: true,
+})
+</script>
+
 <template>
-  <div class="ui-table-wrapper">
-    <table class="ui-table">
+  <div class="ui-table-wrapper" :class="{ 'ui-table-wrapper--scroll': scrollable }">
+    <table>
       <slot />
     </table>
   </div>
@@ -8,45 +40,14 @@
 
 <style scoped>
 .ui-table-wrapper {
+  border: 1px solid var(--color-neutral-150);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-neutral-0);
+  box-shadow: var(--shadow-sm);
+}
+
+.ui-table-wrapper--scroll {
   overflow-x: auto;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-neutral-200);
-}
-
-.ui-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.ui-table :deep(thead) {
-  background: var(--color-neutral-50);
-}
-
-.ui-table :deep(th) {
-  padding: var(--spacing-3) var(--spacing-4);
-  text-align: left;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-neutral-500);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid var(--color-neutral-200);
-  white-space: nowrap;
-}
-
-.ui-table :deep(td) {
-  padding: var(--spacing-3) var(--spacing-4);
-  color: var(--color-neutral-700);
-  border-bottom: 1px solid var(--color-neutral-100);
-  vertical-align: middle;
-}
-
-.ui-table :deep(tbody tr:last-child td) {
-  border-bottom: none;
-}
-
-.ui-table :deep(tbody tr:hover td) {
-  background: var(--color-neutral-50);
 }
 </style>

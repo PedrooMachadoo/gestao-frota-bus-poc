@@ -8,6 +8,9 @@ definePageMeta({ title: 'Planejamento' })
 // ── Tabs ──────────────────────────────────────────────
 const tabs = [{ label: 'Linha', to: '/linhas' }]
 
+// ── Modal ─────────────────────────────────────────────
+const showModal = ref(false)
+
 // ── Loading ───────────────────────────────────────────
 const isLoading = ref(false)
 
@@ -19,10 +22,12 @@ const filterLinha      = ref<string | null>(null)
 const filterTipo       = ref<string | null>(null)
 const filterStatus     = ref<string | null>(null)
 
-const linhaOptions = [
+const linesList = ref<Line[]>([...mockLines])
+
+const linhaOptions = computed(() => [
   { label: 'Todas as linhas', value: '' },
-  ...mockLines.map(l => ({ label: l.name, value: l.id })),
-]
+  ...linesList.value.map(l => ({ label: l.name, value: l.id })),
+])
 
 const tipoOptions = [
   { label: 'Todos os tipos',    value: '' },
@@ -37,13 +42,20 @@ const statusOptions = [
   { label: 'Inativo', value: 'inactive' },
 ]
 
-const hasFilters = computed(() => filterLinha.value || filterTipo.value || filterStatus.value)
-
 function clearFilters() {
   filterLinha.value  = null
   filterTipo.value   = null
   filterStatus.value = null
   hasSearched.value  = false
+}
+
+function onAddLine(newLine: Line) {
+  linesList.value.unshift(newLine)
+  filterLinha.value  = null
+  filterTipo.value   = null
+  filterStatus.value = null
+  hasSearched.value  = true
+  currentPage.value  = 1
 }
 
 // Marca como "pesquisado" apenas quando o usuário seleciona algo (não ao limpar)
@@ -55,7 +67,7 @@ watch([filterLinha, filterTipo, filterStatus], ([linha, tipo, status]) => {
 
 // ── Data ──────────────────────────────────────────────
 const filtered = computed<Line[]>(() => {
-  return mockLines.filter(l => {
+  return linesList.value.filter(l => {
     if (filterLinha.value  && l.id !== filterLinha.value)           return false
     if (filterTipo.value   && l.tipoOperacao !== filterTipo.value)  return false
     if (filterStatus.value && l.status !== filterStatus.value)      return false
@@ -115,9 +127,9 @@ watch(filtered, () => { currentPage.value = 1 })
         <span class="ph-divider" />
 
         <!-- Add button -->
-        <NuxtLink to="/linhas/adicionar" class="ph-btn-icon" title="Nova linha">
+        <button class="ph-btn-icon" title="Nova linha" @click="showModal = true">
           <Plus :size="18" />
-        </NuxtLink>
+        </button>
       </template>
     </PageHeader>
 
@@ -125,28 +137,24 @@ watch(filtered, () => { currentPage.value = 1 })
     <div class="planejamento__content">
 
       <!-- ── Skeleton loading state ── -->
-      <div v-if="isLoading" class="planejamento__table-wrapper">
-        <table class="planejamento__table planejamento__table--skeleton">
-          <!-- Skeleton header -->
-          <thead>
-            <tr class="skel-header-row">
-              <th><span class="skel-bar skel-bar--header" style="width:60px" /></th>
-              <th><span class="skel-bar skel-bar--header" style="width:120px" /></th>
-              <th><span class="skel-bar skel-bar--header" style="width:140px" /></th>
-              <th class="col-acoes"><span class="skel-bar skel-bar--header" style="width:40px" /></th>
-            </tr>
-          </thead>
-          <!-- 5 skeleton rows -->
-          <tbody>
-            <tr v-for="n in 5" :key="n" class="skel-row">
-              <td><span class="skel-bar" style="width:60px" /></td>
-              <td><span class="skel-bar" style="width:117px" /></td>
-              <td><span class="skel-bar" style="width:117px" /></td>
-              <td class="col-acoes"><span class="skel-bar" style="width:28px" /></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      <UiTable v-if="isLoading">
+        <thead>
+          <tr>
+            <th><span class="skel-bar skel-bar--hdr" style="width:60px" /></th>
+            <th><span class="skel-bar skel-bar--hdr" style="width:120px" /></th>
+            <th><span class="skel-bar skel-bar--hdr" style="width:140px" /></th>
+            <th class="col-actions"><span class="skel-bar skel-bar--hdr" style="width:40px" /></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="n in 5" :key="n">
+            <td><span class="skel-bar" style="width:60px" /></td>
+            <td><span class="skel-bar" style="width:117px" /></td>
+            <td><span class="skel-bar" style="width:117px" /></td>
+            <td class="col-actions"><span class="skel-bar" style="width:28px" /></td>
+          </tr>
+        </tbody>
+      </UiTable>
 
       <!-- ── Empty state ── -->
       <div v-else-if="!hasSearched || filtered.length === 0" class="planejamento__empty">
@@ -168,34 +176,32 @@ watch(filtered, () => { currentPage.value = 1 })
 
       <!-- ── Table ── -->
       <template v-else>
-        <div class="planejamento__table-wrapper">
-          <table class="planejamento__table">
-            <thead>
-              <tr>
-                <th>Código</th>
-                <th>Linha</th>
-                <th>Tipo de Operação</th>
-                <th class="col-acoes">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="line in paginated"
-                :key="line.id"
-                :class="{ 'row--inactive': line.status === 'inactive' }"
-              >
-                <td class="col-code">{{ line.code }}</td>
-                <td>{{ line.name }}</td>
-                <td>{{ line.tipoOperacao }}</td>
-                <td class="col-acoes">
-                  <button class="action-menu-btn">
-                    <MoreVertical :size="16" />
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <UiTable>
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Linha</th>
+              <th>Tipo de Operação</th>
+              <th class="col-actions" style="text-align:center">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="line in paginated"
+              :key="line.id"
+              :class="{ 'row--inactive': line.status === 'inactive' }"
+            >
+              <td class="cell--mono">{{ line.code }}</td>
+              <td>{{ line.name }}</td>
+              <td>{{ line.tipoOperacao }}</td>
+              <td class="col-actions">
+                <button class="action-menu-btn">
+                  <MoreVertical :size="16" />
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </UiTable>
 
         <!-- Pagination -->
         <div class="planejamento__pagination">
@@ -218,6 +224,10 @@ watch(filtered, () => { currentPage.value = 1 })
       </template>
 
     </div>
+
+    <!-- ── Adicionar Linha modal ── -->
+    <LinhaModal :open="showModal" @close="showModal = false" @add="onAddLine" />
+
   </div>
 </template>
 
@@ -232,7 +242,7 @@ watch(filtered, () => { currentPage.value = 1 })
 
 /* ── Content area ─────────────────────────────────── */
 .planejamento__content {
-  padding: 28px 32px;
+  padding: 20px 28px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -255,11 +265,11 @@ watch(filtered, () => { currentPage.value = 1 })
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: #F4F4F5;
+  background: var(--color-neutral-100);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #A1A1AA;
+  color: var(--color-neutral-400);
   flex-shrink: 0;
 }
 
@@ -267,7 +277,7 @@ watch(filtered, () => { currentPage.value = 1 })
   margin: 0;
   font-size: 18px;
   font-weight: 700;
-  color: #1E1E1E;
+  color: var(--color-neutral-900);
   line-height: 28px;
 }
 
@@ -275,7 +285,7 @@ watch(filtered, () => { currentPage.value = 1 })
   margin: 0;
   font-size: 14px;
   font-weight: 400;
-  color: #7A7A7A;
+  color: var(--color-neutral-500);
   line-height: 20px;
   max-width: 340px;
 }
@@ -298,11 +308,12 @@ watch(filtered, () => { currentPage.value = 1 })
   border-color: var(--color-neutral-400);
 }
 
-/* ── Filter button — neutro/desabilitado por padrão, ativo quando há filtros ── */
+/* ── Filter button ────────────────────────────────── */
 .filter-btn {
-  background: var(--color-neutral-0) !important;
-  border: 1px solid var(--color-neutral-200) !important;
-  color: var(--color-neutral-300) !important;
+  background: #F5F5F5 !important;
+  border: 1px solid #E5E5E5 !important;
+  color: #A3A3A3 !important;
+  border-radius: 4px !important;
 }
 .filter-btn:disabled {
   cursor: default !important;
@@ -321,62 +332,7 @@ watch(filtered, () => { currentPage.value = 1 })
   border-color: var(--color-action-blue-hover) !important;
 }
 
-/* ── Table ────────────────────────────────────────── */
-.planejamento__table-wrapper {
-  border: 1px solid var(--color-neutral-200);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--color-neutral-0);
-}
-
-.planejamento__table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.planejamento__table thead {
-  background: var(--color-neutral-50);
-}
-
-.planejamento__table th {
-  padding: 10px 16px;
-  text-align: left;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--color-neutral-700);
-  border-bottom: 1px solid var(--color-neutral-200);
-  white-space: nowrap;
-}
-
-.planejamento__table td {
-  padding: 10px 16px;
-  color: var(--color-neutral-700);
-  border-bottom: 1px solid var(--color-neutral-100);
-  vertical-align: middle;
-}
-
-.planejamento__table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.planejamento__table tbody tr:hover td {
-  background: var(--color-neutral-50);
-}
-
-.row--inactive td { color: var(--color-neutral-400); }
-
-.col-code {
-  font-family: 'Courier New', monospace;
-  font-size: 13px;
-  color: var(--color-neutral-600);
-}
-
-.col-acoes {
-  width: 60px;
-  text-align: center;
-}
-
+/* ── Action menu button ───────────────────────────── */
 .action-menu-btn {
   width: 28px;
   height: 28px;
@@ -395,7 +351,27 @@ watch(filtered, () => { currentPage.value = 1 })
   color: var(--color-neutral-700);
 }
 
-/* ── Skeleton ─────────────────────────────────────── */
+/* Dentro de linha com hover/selected/disabled — herda cor da linha */
+tr:hover .action-menu-btn,
+tr.row--selected .action-menu-btn {
+  color: rgba(255, 255, 255, 0.70);
+}
+tr:hover .action-menu-btn:hover,
+tr.row--selected .action-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: var(--color-neutral-0);
+}
+tr.row--disabled .action-menu-btn,
+tr.row--inactive .action-menu-btn {
+  color: var(--color-table-row-disabled-text);
+}
+tr.row--disabled .action-menu-btn:hover,
+tr.row--inactive .action-menu-btn:hover {
+  background: var(--color-neutral-200);
+  color: var(--color-neutral-600);
+}
+
+/* ── Skeleton shimmer ─────────────────────────────── */
 @keyframes skel-shimmer {
   0%   { background-position: -400px 0; }
   100% { background-position:  400px 0; }
@@ -410,24 +386,10 @@ watch(filtered, () => { currentPage.value = 1 })
   animation: skel-shimmer 1.4s ease-in-out infinite;
 }
 
-.skel-bar--header {
-  background: linear-gradient(90deg, #F5F5F5 25%, #EBEBEB 50%, #F5F5F5 75%);
+.skel-bar--hdr {
+  background: linear-gradient(90deg, #EBEBEB 25%, #E0E0E0 50%, #EBEBEB 75%);
   background-size: 800px 100%;
-}
-
-.skel-header-row th {
-  padding: 9px 16px;
-  border-bottom: 1px solid var(--color-neutral-200);
-  background: var(--color-neutral-50);
-}
-
-.skel-row td {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--color-neutral-100);
-}
-
-.skel-row:last-child td {
-  border-bottom: none;
+  animation: skel-shimmer 1.4s ease-in-out infinite;
 }
 
 /* ── Pagination ───────────────────────────────────── */
