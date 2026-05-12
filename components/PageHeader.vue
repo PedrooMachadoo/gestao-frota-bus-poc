@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { useSlots } from 'vue'
+import { useRoute } from 'vue-router'
+
 interface Tab {
   label: string
   to: string
@@ -20,7 +23,7 @@ function isTabActive(to: string) {
 </script>
 
 <template>
-  <header class="page-header">
+  <header class="page-header" :class="{ 'page-header--spacer': tabs.length && !slots.toolbar }">
 
     <!-- ── Title row ── -->
     <div class="page-header__title-row">
@@ -58,13 +61,16 @@ function isTabActive(to: string) {
   position: relative;
   z-index: 1000;
 }
+/* Quando tem tabs mas não tem toolbar — pequeno respiro abaixo */
+.page-header--spacer {
+  padding-bottom: 8px;
+}
 
 /* ── Title row ───────────────────────────────────────── */
 .page-header__title-row {
   display: flex;
   align-items: center;
-  padding: 0 20px;
-  height: 56px;
+  padding: 20px 20px;
   flex-shrink: 0;
 }
 
@@ -86,8 +92,8 @@ function isTabActive(to: string) {
   display: flex;
   align-items: stretch;
   gap: 10px;
-  padding: 0 20px;
-  height: 36px;
+  padding: 0 28px;
+  height: 40px;
   background: var(--color-neutral-0);
   border-bottom: 1px solid var(--color-neutral-200);
 }
@@ -95,13 +101,13 @@ function isTabActive(to: string) {
 .page-header__tab {
   display: inline-flex;
   align-items: center;
-  padding: 0 12px;
+  padding: 0 16px;
   height: 100%;
   font-family: 'Inter', sans-serif;
   font-size: 14px;
   font-weight: 500;
   line-height: 20px;
-  color: #7A7A7A;
+  color: var(--color-neutral-400);
   text-decoration: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
@@ -109,10 +115,11 @@ function isTabActive(to: string) {
   white-space: nowrap;
   flex-shrink: 0;
 }
-.page-header__tab:hover { color: #171717; }
+.page-header__tab:hover { color: var(--color-neutral-700); }
 .page-header__tab.page-header__tab--active {
-  color: #171717;
-  border-bottom-color: var(--color-action-primary) !important;
+  color: var(--color-neutral-900);
+  font-weight: 600;
+  border-bottom-color: #1B45A3;
 }
 
 /* ── Toolbar row ─────────────────────────────────────── */
