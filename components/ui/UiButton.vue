@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import UiSpinner from './UiSpinner.vue'
+
 interface Props {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   size?: 'sm' | 'md' | 'lg'

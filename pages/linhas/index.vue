@@ -6,7 +6,10 @@ import type { Line } from '~/types'
 definePageMeta({ title: 'Planejamento' })
 
 // ── Tabs ──────────────────────────────────────────────
-const tabs = [{ label: 'Linha', to: '/linhas' }]
+const tabs = [
+  { label: 'Linha', to: '/linhas' },
+  { label: 'Ponto de Parada', to: '/pontos' },
+]
 
 // ── Modal ─────────────────────────────────────────────
 const showModal = ref(false)

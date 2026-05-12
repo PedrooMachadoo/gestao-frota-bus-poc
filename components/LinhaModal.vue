@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { reactive, computed, watch, onMounted, onUnmounted } from 'vue'
 import { X, ChevronDown } from 'lucide-vue-next'
+import UiSelect from '~/components/ui/UiSelect.vue'
+import UiButton from '~/components/ui/UiButton.vue'
 import { mockLines } from '~/data/lines.mock'
 import type { Line } from '~/types'
 
@@ -15,7 +18,7 @@ const form = reactive({
   nomeLinha:         '',
   tipoOperacao:      null as string | null,
   substituirInicio1: 'nao',
-  substituirInicio2: 'sim',
+  substituirInicio2: 'nao',
 })
 
 // ── Tipo de operação options ───────────────────────────
@@ -34,10 +37,10 @@ const criticidadeOptions = [
 
 const defaultAlertas = [
   { id: 1, label: 'Regular',               ativo: 'nao', parametro: '',   unidade: '',  criticidade: 'baixa' },
-  { id: 2, label: 'Comboio',               ativo: 'sim', parametro: '',   unidade: '',  criticidade: 'media' },
+  { id: 2, label: 'Comboio',               ativo: 'nao', parametro: '',   unidade: '',  criticidade: 'media' },
   { id: 3, label: 'Checagem',              ativo: 'nao', parametro: '00', unidade: '%', criticidade: 'alta'  },
   { id: 4, label: 'Regularidade',          ativo: 'nao', parametro: '',   unidade: '',  criticidade: 'baixa' },
-  { id: 5, label: 'Desvio de intinerário', ativo: 'sim', parametro: '',   unidade: '',  criticidade: 'media' },
+  { id: 5, label: 'Desvio de intinerário', ativo: 'nao', parametro: '',   unidade: '',  criticidade: 'media' },
 ]
 
 // ── Alert rows ─────────────────────────────────────────
@@ -48,7 +51,7 @@ function resetState() {
   form.nomeLinha = ''
   form.tipoOperacao = null
   form.substituirInicio1 = 'nao'
-  form.substituirInicio2 = 'sim'
+  form.substituirInicio2 = 'nao'
 
   alertas.splice(0, alertas.length, ...JSON.parse(JSON.stringify(defaultAlertas)))
 }
@@ -236,7 +239,7 @@ onMounted(() => {
                 <!-- Parâmetro — "Table / Itens" DS pattern -->
                 <div class="alertas__col alertas__col--parametro">
                   <!-- Desabilitado: mesmo container, bg cinza, texto muted -->
-                  <div v-if="!alerta.unidade" class="param-cell param-cell--disabled">
+                  <div v-if="!alerta.unidade || alerta.ativo === 'nao'" class="param-cell param-cell--disabled">
                     <span class="param-cell__value">--</span>
                   </div>
                   <!-- Ativo: container branco com input inline + unidade -->
@@ -257,6 +260,7 @@ onMounted(() => {
                   <UiSelect
                     v-model="alerta.criticidade"
                     :options="criticidadeOptions"
+                    :disabled="alerta.ativo === 'nao'"
                     class="criticidade-select"
                   />
                 </div>
