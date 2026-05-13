@@ -226,11 +226,11 @@ onUnmounted(() => {
           <div class="sidebar__flags">
             <span>🇧🇷</span><span>🇺🇸</span><span>🇪🇸</span>
           </div>
-          <span class="sidebar__version">Versão 0.2.0</span>
+          <span class="sidebar__version">Versão 0.2.1</span>
           <span class="sidebar__email">email.usuario@mobs2.com</span>
           <hr class="sidebar__hr" />
         </template>
-        <span v-else class="sidebar__version-mini">0.2.0</span>
+        <span v-else class="sidebar__version-mini">0.2.1</span>
         <button class="sidebar__logout" :class="{ 'sidebar__logout--icon': !sidebarOpen }">
           <LogOut :size="15" />
           <span v-if="sidebarOpen">Sair</span>
