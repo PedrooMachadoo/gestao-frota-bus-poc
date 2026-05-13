@@ -760,8 +760,9 @@ onMounted(async () => {
   map = L.map('replay-map', {
     center: [-8.0476, -34.8770],
     zoom: 13,
-    zoomControl: true,
+    zoomControl: false,
   })
+  L.control.zoom({ position: 'bottomleft' }).addTo(map)
 
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
@@ -782,7 +783,7 @@ onUnmounted(() => {
   <div class="replay-page">
     <PageHeader
       title="Monitoramento"
-      :tabs="[{ label: 'Replay', to: '/replay' }]"
+      :tabs="[{ label: 'Ao vivo', to: '/ao-vivo' }, { label: 'Replay', to: '/replay' }]"
     />
 
     <div class="replay__body">
