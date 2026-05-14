@@ -165,59 +165,93 @@ export function getRouteForAtivo(ativoId: string): LatLng[] {
  * No produto real virão do módulo de "Planejamento → Ponto de parada".
  *
  * Cada parada tem:
- *  • `tipo`  — Garagem / Terminal / Ponto de parada / Outros (mesmo enum do
- *              módulo de Pontos, com ícone e cor próprios)
- *  • `fence` — Geofence própria: círculo (raio) OU polígono (vértices)
+ *  • `tipo`      — Garagem / Terminal / Ponto de parada / Outros
+ *  • `direction` — 'ida' | 'volta' (determina a COR da cerca no mapa:
+ *                  azul para ida, verde para volta)
+ *  • `fence`     — Geofence: círculo (raio em metros) OU polígono (vértices)
  *
  *  Convenção do mock:
- *    Garagem  / Terminal  → polígono (locais com forma irregular)
- *    Parada   / Outros    → raio circular (geofence simples)
+ *    Endpoints  →  Garagem (origem da Ida) + Terminal (origem da Volta)
+ *                  com cerca GRANDE em polígono (destaque visual de local
+ *                  importante).
+ *    Meio       →  Parada/Outros com cerca de raio 80 m (padrão).
  */
-export type StopTipo = 'garagem' | 'terminal' | 'parada' | 'outros'
+export type StopTipo      = 'garagem' | 'terminal' | 'parada' | 'outros'
+export type StopDirection = 'ida' | 'volta'
 
 export type StopFence =
   | { mode: 'radius';  radius: number }
   | { mode: 'polygon'; vertices: LatLng[] }
 
 export interface Stop {
-  pos:   LatLng
-  tipo:  StopTipo
-  fence: StopFence
+  pos:       LatLng
+  tipo:      StopTipo
+  direction: StopDirection
+  fence:     StopFence
 }
 
 /** Gera um polígono quadrilátero leve em torno de um ponto. */
 function polygonAround(pos: LatLng, sizeLat = 0.0006, sizeLng = 0.0008, seed = 0): LatLng[] {
   const [lat, lng] = pos
-  // Pequena variação por seed pra polígonos não ficarem todos idênticos
   const j = (n: number) => 0.85 + (((seed * n) % 30) / 100)  // 0.85..1.15
   return [
-    [lat + sizeLat * j(7),       lng - sizeLng * j(11) * 0.7],
+    [lat + sizeLat * j(7),        lng - sizeLng * j(11) * 0.7],
     [lat + sizeLat * j(13) * 0.5, lng + sizeLng * j(17)],
     [lat - sizeLat * j(19) * 0.6, lng + sizeLng * j(23) * 0.8],
     [lat - sizeLat * j(29),       lng - sizeLng * j(31) * 0.5],
   ]
 }
 
-/** Sequência de tipos pra dar variedade visual ao longo da rota. */
-const TIPO_SEQUENCE: StopTipo[] = ['garagem', 'parada', 'terminal', 'parada', 'outros', 'parada']
+/** Sequência de tipos para paradas INTERMEDIÁRIAS (endpoints são fixos). */
+const MID_TIPO_SEQUENCE: StopTipo[] = ['parada', 'outros', 'parada', 'outros']
 
 export function getStopsForLinha(linhaId: string): Stop[] {
   const seg  = getRouteForLinha(linhaId)
   const seed = seedFrom(linhaId)
   const out: Stop[] = []
-  let idx = 0
 
-  for (const route of [seg.ida, seg.volta]) {
-    for (let i = 3; i < route.length - 2; i += 4) {
-      const pos  = route[i]
-      const tipo = TIPO_SEQUENCE[idx % TIPO_SEQUENCE.length]
-      const fence: StopFence =
-        (tipo === 'garagem' || tipo === 'terminal')
-          ? { mode: 'polygon', vertices: polygonAround(pos, 0.00065, 0.00085, seed + idx) }
-          : { mode: 'radius',  radius: 80 }
-      out.push({ pos, tipo, fence })
-      idx++
-    }
+  // ── Endpoint 1: INÍCIO DA IDA (= fim da Volta)
+  //    Garagem com cerca GRANDE em polígono → cor azul (ida)
+  const idaStart = seg.ida[0]
+  out.push({
+    pos:       idaStart,
+    tipo:      'garagem',
+    direction: 'ida',
+    fence:     { mode: 'polygon', vertices: polygonAround(idaStart, 0.0014, 0.0018, seed + 1001) },
+  })
+
+  // ── Endpoint 2: FIM DA IDA (= início da Volta)
+  //    Terminal com cerca GRANDE em polígono → cor verde (volta)
+  const idaEnd = seg.ida[seg.ida.length - 1]
+  out.push({
+    pos:       idaEnd,
+    tipo:      'terminal',
+    direction: 'volta',
+    fence:     { mode: 'polygon', vertices: polygonAround(idaEnd, 0.0014, 0.0018, seed + 2002) },
+  })
+
+  // ── Paradas intermediárias da IDA (azul) ──
+  let idxIda = 0
+  for (let i = 4; i < seg.ida.length - 4; i += 5) {
+    out.push({
+      pos:       seg.ida[i],
+      tipo:      MID_TIPO_SEQUENCE[idxIda % MID_TIPO_SEQUENCE.length],
+      direction: 'ida',
+      fence:     { mode: 'radius', radius: 80 },
+    })
+    idxIda++
+  }
+
+  // ── Paradas intermediárias da VOLTA (verde) ──
+  let idxVolta = 0
+  for (let i = 4; i < seg.volta.length - 4; i += 5) {
+    out.push({
+      pos:       seg.volta[i],
+      tipo:      MID_TIPO_SEQUENCE[(idxVolta + 1) % MID_TIPO_SEQUENCE.length],
+      direction: 'volta',
+      fence:     { mode: 'radius', radius: 80 },
+    })
+    idxVolta++
   }
 
   return out

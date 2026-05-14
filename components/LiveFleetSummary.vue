@@ -81,26 +81,25 @@ const items = computed<{ status: FleetStatus; label: string; text: string }[]>((
 
 <style scoped>
 .lfs {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 20px;
+  gap: 18px;                     /* espaço entre os 3 status — mais compacto */
+  padding: 8px 14px;
   background: #FFFFFF;
   border: 1px solid var(--color-neutral-200, #E8E8E8);
   border-radius: 8px;
   box-shadow: 0 4px 4px rgba(0, 0, 0, 0.18), 1px 1px 6px rgba(0, 0, 0, 0.08);
   font-family: 'Inter', sans-serif;
   color: #394A4F;
-  width: 430px;
+  max-width: calc(100vw - 24px); /* nunca ultrapassa a viewport */
+  width: max-content;            /* tamanho natural, sem esticar */
 }
 
 .lfs__item {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-width: 0;
-  flex: 1;
+  flex: 0 0 auto;
 }
 
 .lfs__svg {
@@ -120,7 +119,6 @@ const items = computed<{ status: FleetStatus; label: string; text: string }[]>((
 .lfs__text {
   display: flex;
   flex-direction: column;
-  min-width: 0;
 }
 
 .lfs__label {
@@ -129,9 +127,7 @@ const items = computed<{ status: FleetStatus; label: string; text: string }[]>((
   font-weight: 700;
   line-height: 20px;
   color: #394A4F;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap;       /* uma linha, sem truncamento */
 }
 
 .lfs__count {
@@ -140,8 +136,7 @@ const items = computed<{ status: FleetStatus; label: string; text: string }[]>((
   font-weight: 400;
   line-height: 15px;
   color: #394A4F;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: nowrap;       /* uma linha, sem truncamento */
+  font-variant-numeric: tabular-nums;  /* dígitos alinhados, sem "respiração" */
 }
 </style>

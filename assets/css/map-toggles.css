@@ -1,0 +1,65 @@
+/**
+ * map-toggles.css
+ * Painel flutuante de toggles sobre o mapa — gradiente azul + checkboxes custom.
+ * Usado em Replay e Ao vivo.
+ *
+ * Pode ser embrulhado em qualquer container — o container externo decide
+ * a posição (absolute top/right etc.) e este CSS cuida da apresentação interna.
+ */
+
+/* Container externo — pode ser .rp-toggles (Replay) ou .ao-vivo__toggles (Ao vivo).
+   Ambos usam o mesmo "cartão" gradiente; cada página posiciona como quiser. */
+.rp-toggles,
+.ao-vivo__toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2CC5C9 0%, #1F3A8A 55%, #0F1E3D 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  font-family: 'Inter', sans-serif;
+}
+
+.rp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.rp-toggle input { position: absolute; opacity: 0; pointer-events: none; }
+
+.rp-toggle__box {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #FFFFFF;
+  border-radius: 4px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background var(--transition-fast, 150ms ease);
+}
+.rp-toggle input:checked + .rp-toggle__box {
+  background: #FFFFFF;
+}
+.rp-toggle input:checked + .rp-toggle__box::after {
+  content: '';
+  width: 10px;
+  height: 6px;
+  border-left: 2px solid #1F3A8A;
+  border-bottom: 2px solid #1F3A8A;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+
+.rp-toggle__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #FFFFFF;
+  white-space: nowrap;
+}
+.rp-toggle:hover .rp-toggle__box {
+  border-color: rgba(255, 255, 255, 0.85);
+}
