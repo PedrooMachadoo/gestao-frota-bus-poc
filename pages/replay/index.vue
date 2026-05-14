@@ -42,11 +42,14 @@ import { mockVehicles } from '~/data/vehicles.mock'
 import {
   getRouteForAtivo,
   getRouteForLinha,
-  getStopsForLinha,
   type LatLng,
-  type Stop,
-  type StopTipo,
 } from '~/data/replay-routes.mock'
+import {
+  createRouteOverlayManager,
+  IDA_COLOR,
+  VOLTA_COLOR,
+  bearing,
+} from '~/composables/useRouteOverlay'
 
 definePageMeta({ layout: 'default' })
 
@@ -83,17 +86,15 @@ interface AtivoMapLayer {
 // ════════════════════════════════════════════════════
 let L: any = null
 let map: any = null
-let previewLayer: any = null
-let stopsLayer:   any = null      // pontos de parada (toggle "Ponto de parada")
-let radiusLayer:  any = null      // círculos de geofence (toggle "Raio")
+// Layers do overlay (preview, stops, fences) são gerenciados pelo
+// routeOverlay manager — não precisamos de refs locais aqui.
 const ativoLayers = new Map<string, AtivoMapLayer>()
 let playTimer: any = null
 
 const STOP_RADIUS_METERS = 80     // raio padrão da cerca em torno de cada parada
 
-// Cores de regra de negócio (transporte urbano): IDA = azul, VOLTA = verde
-const IDA_COLOR    = '#2D6BFF'
-const VOLTA_COLOR  = '#16A34A'
+// IDA_COLOR / VOLTA_COLOR vêm do composable useRouteOverlay
+// (re-exportados aqui só para uso pontual em outros lugares do arquivo)
 
 const VELOCITY_MS: Record<string, number> = {
   '0.5x': 1600, '1x': 800, '2x': 400, '4x': 200,
@@ -192,76 +193,12 @@ const canAdd = computed(() =>
 // ════════════════════════════════════════════════════
 // 5) Helpers de mapa
 // ════════════════════════════════════════════════════
-function bearing(from: LatLng, to: LatLng): number {
-  return Math.atan2(to[1] - from[1], to[0] - from[0]) * 180 / Math.PI
-}
+// (bearing, addArrowTip, addRouteStartBadge, addRouteEndPin e
+//  addDirectionChevrons foram extraídos para composables/useRouteOverlay.ts —
+//  agora compartilhados com a tela Ao vivo.)
 
-function addArrowTip(prev: LatLng, end: LatLng, color: string, layerGroup: any) {
-  const angle = bearing(prev, end)
-  const cssAngle = 90 - angle
-  const html = `
-    <div class="arrow-tip" style="transform: rotate(${cssAngle}deg);">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="${color}">
-        <path d="M12 2 L20 18 L12 14 L4 18 Z"/>
-      </svg>
-    </div>`
-  const icon = L.divIcon({ html, className: 'arrow-tip-wrap', iconSize: [18, 18], iconAnchor: [9, 9] })
-  L.marker(end, { icon, interactive: false }).addTo(layerGroup)
-}
-
-/**
- * Pino de INÍCIO de uma rota: badge colorida com texto (ex.: "IDA" / "VOLTA").
- * Visualmente sai do mapa como uma etiqueta apontando para o waypoint inicial.
- */
-function addRouteStartBadge(pos: LatLng, text: string, color: string, layerGroup: any) {
-  const html = `
-    <div class="route-badge route-badge--start" style="background:${color};">
-      <span class="route-badge__dot"></span>
-      <span class="route-badge__text">${text}</span>
-    </div>`
-  const icon = L.divIcon({
-    html,
-    className: 'route-badge-wrap',
-    iconSize:  [56, 22],
-    iconAnchor:[0,  11],   // ancora pelo lado esquerdo → badge "sai" do ponto
-  })
-  L.marker(pos, { icon, interactive: false, zIndexOffset: 600 }).addTo(layerGroup)
-}
-
-/**
- * Pino de FIM de uma rota: pequeno círculo color-coded com check.
- * Compacto pra não competir com o badge de início.
- */
-function addRouteEndPin(pos: LatLng, color: string, layerGroup: any) {
-  const html = `
-    <div class="route-endpin" style="background:${color};">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="20 6 9 17 4 12"/>
-      </svg>
-    </div>`
-  const icon = L.divIcon({ html, className: 'route-endpin-wrap', iconSize: [16, 16], iconAnchor: [8, 8] })
-  L.marker(pos, { icon, interactive: false, zIndexOffset: 550 }).addTo(layerGroup)
-}
-
-/**
- * Chevrons direcionais ao longo de uma polyline.
- * Coloca uma seta (▶) na cor da linha a cada `step` waypoints.
- * Pula os endpoints (que já têm o pino A/B + seta de ponta).
- */
-function addDirectionChevrons(route: LatLng[], color: string, layerGroup: any, step = 5) {
-  for (let i = step; i < route.length - 2; i += step) {
-    const angle = bearing(route[i], route[i + 1])
-    const cssAngle = 90 - angle
-    const html = `
-      <div class="chevron" style="transform: rotate(${cssAngle}deg);">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="${color}">
-          <path d="M12 2 L20 18 L12 14 L4 18 Z"/>
-        </svg>
-      </div>`
-    const icon = L.divIcon({ html, className: 'chevron-wrap', iconSize: [12, 12], iconAnchor: [6, 6] })
-    L.marker(route[i], { icon, interactive: false }).addTo(layerGroup)
-  }
-}
+// Manager de overlays do itinerário (preview + stops + fences)
+const routeOverlay = createRouteOverlayManager()
 
 /**
  * Marker do ATIVO atualmente: círculo na cor do ativo + seta branca
@@ -330,160 +267,30 @@ function buildPopupHtml(a: AtivoSelecionado, idx: number): string {
     </div>`
 }
 
-// ── Preview (Card 1) ─────────────────────────────────
+// ── Preview / Stops / Fences (Card 1) ────────────────
+// Lógica de desenho centralizada no composable useRouteOverlay.
+// O Replay usa um set de "1 linha por vez" (a do Card 1).
+
 function clearPreview() {
-  if (previewLayer) {
-    previewLayer.clearLayers()
-    map?.removeLayer(previewLayer)
-    previewLayer = null
-  }
+  routeOverlay.syncLinhas([])
   previewVisible.value = false
 }
 
 function drawPreview(linhaId: string) {
   if (!L || !map) return
-  clearPreview()
-  const seg = getRouteForLinha(linhaId)
-  previewLayer = L.layerGroup().addTo(map)
+  routeOverlay.syncLinhas([linhaId])
   previewVisible.value = true
 
-  // ── Linhas (rotas independentes; compartilham só os terminais)
-  const idaLine   = L.polyline(seg.ida,   { color: IDA_COLOR,   weight: 5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(previewLayer)
-  const voltaLine = L.polyline(seg.volta, { color: VOLTA_COLOR, weight: 5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(previewLayer)
-
-  // ── Setas só nas pontas (direção da rota) — chevrons e pinos de fim removidos
-  //    para não criar ruído visual quando ativos cruzam a rota planejada.
-  addArrowTip(seg.ida[seg.ida.length - 2],     seg.ida[seg.ida.length - 1],     IDA_COLOR,   previewLayer)
-  addArrowTip(seg.volta[seg.volta.length - 2], seg.volta[seg.volta.length - 1], VOLTA_COLOR, previewLayer)
-
-  // ── Badges "IDA" / "VOLTA" no INÍCIO de cada rota (ancoragem semântica)
-  addRouteStartBadge(seg.ida[0],   'IDA',   IDA_COLOR,   previewLayer)
-  addRouteStartBadge(seg.volta[0], 'VOLTA', VOLTA_COLOR, previewLayer)
-
-  map.fitBounds(idaLine.getBounds().extend(voltaLine.getBounds()), { padding: [60, 60] })
+  // fitBounds centralizando na rota recém-desenhada
+  const seg = getRouteForLinha(linhaId)
+  const bounds = L.latLngBounds([...seg.ida, ...seg.volta])
+  map.fitBounds(bounds, { padding: [60, 60] })
 }
 
-// ── Pontos de parada e raios (toggles sobre o itinerário do Card 1) ──────
-
-/**
- * Metadata de cada tipo de ponto — mesma definição do módulo Pontos:
- *   • dotBg / balloonColor: cores do pin
- *   • iconPath: SVG path do ícone Lucide correspondente (Home / Bus / MapPin / Users)
- */
-const STOP_TIPOS: Record<StopTipo, { dotBg: string; balloonColor: string; iconPath: string }> = {
-  garagem:  {
-    dotBg: '#1F2937', balloonColor: '#1B3A6B',
-    iconPath: '<path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
-  },
-  terminal: {
-    dotBg: '#D97706', balloonColor: '#B45309',
-    iconPath: '<path d="M8 6v6"/><path d="M15 6v6"/><path d="M2 12h19.6"/><path d="M18 18h3s.5-1.7.8-2.8c.1-.4.2-.8.2-1.2 0-.4-.1-.8-.2-1.2l-1.4-5C20.1 6.8 19.1 6 18 6H4a2 2 0 0 0-2 2v10h3"/><circle cx="7" cy="18" r="2"/><path d="M9 18h5"/><circle cx="16" cy="18" r="2"/>',
-  },
-  parada:   {
-    dotBg: '#6B7280', balloonColor: '#4B5563',
-    iconPath: '<path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/>',
-  },
-  outros:   {
-    dotBg: '#374151', balloonColor: '#374151',
-    iconPath: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
-  },
-}
-
-/** Cores da cerca/raio — mesmo blue do módulo Pontos */
-const FENCE_COLOR        = '#2D6BFF'
-const FENCE_FILL_OPACITY = 0.18
-
-/** Pin do ponto de parada — cor + ícone variam pelo tipo. */
-function stopPinIcon(tipo: StopTipo) {
-  const m = STOP_TIPOS[tipo]
-  const html = `
-    <svg width="26" height="30" viewBox="0 0 30 34" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        <filter id="rp-stop-shadow" x="-30%" y="-30%" width="160%" height="160%">
-          <feDropShadow dx="1.5" dy="1.5" stdDeviation="0.8" flood-color="rgba(0,0,0,0.25)"/>
-        </filter>
-      </defs>
-      <g filter="url(#rp-stop-shadow)">
-        <circle cx="15" cy="15" r="14.5" fill="${m.balloonColor}" stroke="rgba(248,248,248,0.97)" stroke-width="0.5"/>
-        <polygon points="9,26 15,33.5 21,26" fill="${m.balloonColor}"/>
-      </g>
-      <circle cx="15" cy="14.5" r="8.5" fill="${m.dotBg}" stroke="white" stroke-width="1"/>
-      <svg x="8.5" y="8" width="13" height="13" viewBox="0 0 24 24" fill="none"
-           stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">${m.iconPath}</svg>
-    </svg>`
-  return L.divIcon({ html, className: 'rp-stop-pin-wrap', iconSize: [26, 30], iconAnchor: [13, 30] })
-}
-
-
-
-function clearStops()  { if (stopsLayer)  { map?.removeLayer(stopsLayer);  stopsLayer  = null } }
-function clearRadius() { if (radiusLayer) { map?.removeLayer(radiusLayer); radiusLayer = null } }
-
-/** Desenha os pins de ponto de parada com seus respectivos tipos. */
-function drawStops(linhaId: string) {
-  if (!L || !map) return
-  clearStops()
-  const stops = getStopsForLinha(linhaId)
-  if (stops.length === 0) return
-  stopsLayer = L.layerGroup().addTo(map)
-  for (const s of stops) {
-    L.marker(s.pos, { icon: stopPinIcon(s.tipo), zIndexOffset: 400 }).addTo(stopsLayer)
-  }
-}
-
-/**
- * Desenha as cercas/raios de cada parada. Suporta dois modos:
- *  • mode='radius'  → círculo de raio N metros + 4 handles cardinais (N/E/S/O)
- *  • mode='polygon' → polígono fechado com handle em cada vértice
- */
-function drawRadius(linhaId: string) {
-  if (!L || !map) return
-  clearRadius()
-  const stops = getStopsForLinha(linhaId)
-  if (stops.length === 0) return
-  radiusLayer = L.layerGroup().addTo(map)
-
-  for (const s of stops) {
-    if (s.fence.mode === 'radius') {
-      // Círculo + 4 handles em N/E/S/O
-      L.circle(s.pos, {
-        radius:      s.fence.radius,
-        color:       FENCE_COLOR,
-        fillColor:   FENCE_COLOR,
-        fillOpacity: FENCE_FILL_OPACITY,
-        weight:      2,
-        interactive: false,
-      }).addTo(radiusLayer)
-
-    } else {
-      // Polígono fechado
-      L.polygon(s.fence.vertices, {
-        color:       FENCE_COLOR,
-        fillColor:   FENCE_COLOR,
-        fillOpacity: FENCE_FILL_OPACITY,
-        weight:      2,
-        interactive: false,
-      }).addTo(radiusLayer)
-
-    }
-  }
-}
-
-/**
- * Helper: dado um centro, um raio em metros e um bearing em graus,
- * retorna a coordenada deslocada. Aproximação suficiente para distâncias < 1km.
- */
-function offsetLatLng(center: LatLng, radiusMeters: number, bearingDeg: number): LatLng {
-  const R    = 6378137                                     // raio da Terra
-  const δ    = radiusMeters / R
-  const θ    = bearingDeg * Math.PI / 180
-  const φ1   = center[0] * Math.PI / 180
-  const λ1   = center[1] * Math.PI / 180
-  const φ2   = Math.asin(Math.sin(φ1) * Math.cos(δ) + Math.cos(φ1) * Math.sin(δ) * Math.cos(θ))
-  const λ2   = λ1 + Math.atan2(Math.sin(θ) * Math.sin(δ) * Math.cos(φ1),
-                                Math.cos(δ) - Math.sin(φ1) * Math.sin(φ2))
-  return [φ2 * 180 / Math.PI, λ2 * 180 / Math.PI]
-}
+function clearStops()  { routeOverlay.syncStops([])  }
+function clearRadius() { routeOverlay.syncFences([]) }
+function drawStops (linhaId: string) { routeOverlay.syncStops([linhaId])  }
+function drawRadius(linhaId: string) { routeOverlay.syncFences([linhaId]) }
 
 // ── Ativos no mapa (Card 2 → Card 3) ─────────────────
 function addAtivoToMap(a: AtivoSelecionado) {
@@ -769,11 +576,15 @@ onMounted(async () => {
     maxZoom: 19,
   }).addTo(map)
 
+  // Conecta o manager de overlays ao Leaflet recém-criado
+  routeOverlay.init(L, map)
+
   setTimeout(() => map?.invalidateSize(), 150)
 })
 
 onUnmounted(() => {
   stopPlay()
+  routeOverlay.destroy()
   map?.remove()
   map = null
 })
@@ -1115,63 +926,14 @@ onUnmounted(() => {
   outline: none;
 }
 
-/* ── Toggles do itinerário ───────────────────────────
-   Painel canto sup. dir. com mesmo gradiente do player. */
+/* Painel .rp-toggles + .rp-toggle agora vivem em assets/css/map-toggles.css
+   (compartilhado com a tela Ao vivo). Aqui só ajustamos posicionamento. */
 .rp-toggles {
   position: absolute;
   top: 12px;
   right: 12px;
   z-index: 500;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #2CC5C9 0%, #1F3A8A 55%, #0F1E3D 100%);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
 }
-
-.rp-toggle {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  user-select: none;
-}
-.rp-toggle input { position: absolute; opacity: 0; pointer-events: none; }
-
-.rp-toggle__box {
-  width: 18px;
-  height: 18px;
-  border: 2px solid #FFFFFF;
-  border-radius: 4px;
-  background: transparent;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  transition: background var(--transition-fast);
-}
-.rp-toggle input:checked + .rp-toggle__box {
-  background: #FFFFFF;
-}
-.rp-toggle input:checked + .rp-toggle__box::after {
-  content: '';
-  width: 10px;
-  height: 6px;
-  border-left: 2px solid #1F3A8A;
-  border-bottom: 2px solid #1F3A8A;
-  transform: rotate(-45deg) translate(1px, -1px);
-}
-
-.rp-toggle__label {
-  font-family: 'Inter', sans-serif;
-  font-size: 13px;
-  font-weight: 500;
-  color: #FFFFFF;
-  white-space: nowrap;
-}
-.rp-toggle:hover .rp-toggle__box { border-color: rgba(255,255,255,0.85); }
 
 /* ── Side panel ─────────────────────────────────── */
 .replay__side {
@@ -1395,72 +1157,11 @@ onUnmounted(() => {
 }
 </style>
 
-<!-- ── Estilos globais p/ overlays do mapa (Leaflet usa o body) ── -->
+<!-- ── Estilos globais p/ overlays específicos do REPLAY ──
+     (overlays compartilhados com a tela Ao vivo — arrow-tip, route-badge,
+      rp-stop-pin-wrap, rp-fence-handle — vivem em assets/css/route-overlay.css) -->
 <style>
-/* Setas de ponta das polylines de Ida/Volta */
-.arrow-tip-wrap { background: transparent; border: none; }
-.arrow-tip {
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
-}
-
-/* Chevrons direcionais ao longo da rota (menores que a seta de ponta) */
-.chevron-wrap { background: transparent; border: none; }
-.chevron {
-  width: 12px;
-  height: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.3));
-}
-
-/* Badge de INÍCIO de rota (pílula com texto IDA / VOLTA) */
-.route-badge-wrap { background: transparent; border: none; }
-.route-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px 4px 7px;
-  border-radius: 999px;
-  color: #FFFFFF;
-  font-family: 'Inter', sans-serif;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.4px;
-  white-space: nowrap;
-  border: 2px solid #FFFFFF;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-  /* Desloca a badge para a direita do ponto inicial */
-  transform: translateX(-8px);
-}
-.route-badge__dot {
-  width: 6px;
-  height: 6px;
-  background: #FFFFFF;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.route-badge__text { line-height: 1; }
-
-/* Pino de FIM (check ✓ pequeno color-coded) */
-.route-endpin-wrap { background: transparent; border: none; }
-.route-endpin {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  border: 2.5px solid #FFFFFF;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
-}
-
-/* Bolinhas direcionais ao longo do trail */
+/* Bolinhas direcionais ao longo do trail do ativo (específico do Replay) */
 .trail-dot-wrap { background: transparent; border: none; }
 .trail-dot {
   width: 16px;
@@ -1473,10 +1174,6 @@ onUnmounted(() => {
   justify-content: center;
   box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
-
-
-/* Wrap dos pins de ponto de parada (sem chrome do Leaflet) */
-.rp-stop-pin-wrap { background: transparent !important; border: none !important; }
 
 /* Marker do ATIVO (posição atual): círculo color-coded + seta direcional */
 .ativo-marker-wrap { background: transparent; border: none; }

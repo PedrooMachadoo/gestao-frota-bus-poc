@@ -28,7 +28,9 @@ type Mode = 'uo' | 'linha'
 
 const emit = defineEmits<{
   (e: 'update:selected', ids: string[]): void
-  (e: 'focus', vehicle: FleetVehicle): void
+  (e: 'focus',     vehicle: FleetVehicle): void
+  (e: 'highlight', id: string | null): void   // item em destaque (1 por vez)
+  (e: 'mode',      mode: Mode): void          // 'uo' | 'linha' — tab atual
 }>()
 
 function focusVehicle(v: FleetVehicle) {
@@ -42,11 +44,30 @@ const mode = ref<Mode>('uo')
 const search = ref('')
 const collapsed = ref(false)
 
-// Veículos selecionados (array reativo — fácil de observar e emitir)
+watch(mode, (m) => emit('mode', m), { immediate: true })
+
+// Veículos selecionados (visíveis no mapa) — array reativo
 const selectedVehicles = ref<string[]>(mockFleet.map(v => v.id))
 const selectedSet = computed(() => new Set(selectedVehicles.value))
 
 watch(selectedVehicles, (ids) => emit('update:selected', [...ids]), { immediate: true })
+
+// Item EM DESTAQUE (1 por vez — diferente de "selecionado", que é a visibilidade no mapa)
+const highlightedId = ref<string | null>(null)
+
+function toggleHighlight(id: string) {
+  highlightedId.value = highlightedId.value === id ? null : id
+}
+
+// Emite a mudança pro parent (ao-vivo page) renderizar o callout no mapa
+watch(highlightedId, (id) => emit('highlight', id), { immediate: true })
+
+// Se o item em destaque for des-selecionado (some do mapa), limpa o destaque
+watch(selectedVehicles, (ids) => {
+  if (highlightedId.value && !ids.includes(highlightedId.value)) {
+    highlightedId.value = null
+  }
+})
 
 // Grupos expandidos (reactive Set — Vue 3 rastreia mutações via proxy)
 const expandedGroups = reactive(new Set<string>())
@@ -95,6 +116,7 @@ function clearFilters() {
   selectedVehicles.value = []
   expandedGroups.clear()
   search.value = ''
+  highlightedId.value = null
 }
 
 interface Group {
@@ -235,9 +257,15 @@ function vehicleSvg(status: FleetStatus): string {
               v-for="v in g.vehicles"
               :key="v.id"
               class="lff__item"
-              :class="{ 'lff__item--selected': selectedSet.has(v.id) }"
+              :class="{
+                'lff__item--selected':    selectedSet.has(v.id),
+                'lff__item--highlighted': v.id === highlightedId,
+              }"
+              role="button"
+              :aria-pressed="v.id === highlightedId"
+              @click="toggleHighlight(v.id)"
             >
-              <button class="lff__item-check" @click="toggleVehicle(v.id)">
+              <button class="lff__item-check" @click.stop="toggleVehicle(v.id)">
                 <span class="lff__check" :class="{ 'lff__check--on': selectedSet.has(v.id) }">
                   <svg viewBox="0 0 16 16" width="10" height="10" aria-hidden="true">
                     <path d="M3 8.5 L7 12 L13 4" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
@@ -255,7 +283,7 @@ function vehicleSvg(status: FleetStatus): string {
               >
                 <component :is="v.driverIdentified ? User : UserX" :size="14" />
               </span>
-              <button class="lff__item-pin" title="Centralizar no mapa" @click="focusVehicle(v)">
+              <button class="lff__item-pin" title="Centralizar no mapa" @click.stop="focusVehicle(v)">
                 <MapPin :size="16" />
               </button>
             </div>
@@ -273,7 +301,8 @@ function vehicleSvg(status: FleetStatus): string {
 <style scoped>
 .lff {
   width: 360px;
-  max-height: calc(100% - 24px);
+  /* Sempre vai até o rodapé do mapa, tendo conteúdo ou não. */
+  height: calc(100% - 24px);
   display: flex;
   flex-direction: column;
   background: rgba(255, 255, 255, 0.55);
@@ -403,7 +432,7 @@ function vehicleSvg(status: FleetStatus): string {
   height: 36px;
   border-radius: 4px;
   border: none;
-  background: var(--color-action-primary-active, #1A043B);
+  background: var(--color-action-primary, #5D37F5);
   color: #FFFFFF;
   cursor: pointer;
   display: inline-flex;
@@ -411,6 +440,9 @@ function vehicleSvg(status: FleetStatus): string {
   justify-content: center;
   flex-shrink: 0;
   transition: background 120ms ease, color 120ms ease, border-color 120ms ease;
+}
+.lff__filter-btn:hover:not(:disabled) {
+  background: var(--color-action-primary-hover, #7152E0);
 }
 .lff__filter-btn--disabled,
 .lff__filter-btn:disabled {
@@ -497,10 +529,39 @@ function vehicleSvg(status: FleetStatus): string {
   gap: 6px;
   padding: 6px 8px;
   border-radius: 6px;
-  transition: background 120ms ease;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
 }
-.lff__item:hover { background: var(--color-neutral-50, #F9FAFB); }
-.lff__item--selected { background: rgba(26, 4, 59, 0.06); }
+.lff__item:hover:not(.lff__item--highlighted) {
+  background: var(--color-neutral-50, #F9FAFB);
+}
+.lff__item--selected:not(.lff__item--highlighted) {
+  background: rgba(26, 4, 59, 0.06);
+}
+
+/* ── Item EM DESTAQUE (clicado para inspecionar) ───────
+   Bg azul-escuro + checkbox accent cyan + texto/ícones brancos.
+   Distinto do --selected (que é só "visível no mapa"). */
+.lff__item--highlighted {
+  background: var(--color-action-primary-active, #1A043B);
+}
+.lff__item--highlighted .lff__item-text {
+  color: #FFFFFF;
+}
+.lff__item--highlighted .lff__check--on {
+  background: #3FE7FF !important;
+  border-color: #3FE7FF !important;
+}
+.lff__item--highlighted .lff__check--on svg path {
+  stroke: var(--color-action-primary-active, #1A043B) !important;
+}
+.lff__item--highlighted .lff__item-pin {
+  color: rgba(255, 255, 255, 0.85);
+}
+.lff__item--highlighted .lff__item-pin:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+}
 
 .lff__item-check {
   border: none;

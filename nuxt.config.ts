@@ -7,6 +7,8 @@ export default defineNuxtConfig({
   css: [
     '~/assets/css/tokens.css',
     '~/assets/css/global.css',
+    '~/assets/css/route-overlay.css',
+    '~/assets/css/map-toggles.css',
     'leaflet/dist/leaflet.css',
   ],
 
