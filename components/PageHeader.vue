@@ -28,6 +28,9 @@ function isTabActive(to: string) {
     <!-- ── Title row ── -->
     <div class="page-header__title-row">
       <h1 class="page-header__title">{{ title }}</h1>
+      <div v-if="slots['title-right']" class="page-header__title-right">
+        <slot name="title-right" />
+      </div>
     </div>
 
     <!-- ── Tabs row (optional) ── -->
@@ -85,6 +88,14 @@ function isTabActive(to: string) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* Slot opcional à direita do título — alinhado verticalmente ao centro do row */
+.page-header__title-right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
 }
 
 /* ── Tabs row ────────────────────────────────────────── */

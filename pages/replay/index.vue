@@ -594,7 +594,7 @@ onUnmounted(() => {
   <div class="replay-page">
     <PageHeader
       title="Monitoramento"
-      :tabs="[{ label: 'Ao vivo', to: '/ao-vivo' }, { label: 'Replay', to: '/replay' }]"
+      :tabs="[{ label: 'Ao vivo', to: '/ao-vivo' }, { label: 'Replay', to: '/replay' }, { label: 'Sinótico', to: '/sinotico' }]"
     />
 
     <div class="replay__body">
@@ -1157,10 +1157,52 @@ onUnmounted(() => {
 }
 </style>
 
-<!-- ── Estilos globais p/ overlays específicos do REPLAY ──
-     (overlays compartilhados com a tela Ao vivo — arrow-tip, route-badge,
-      rp-stop-pin-wrap, rp-fence-handle — vivem em assets/css/route-overlay.css) -->
+<!-- ── Estilos globais p/ overlays do mapa ──────────────
+     Inclui fallback dos overlays compartilhados (badges IDA/VOLTA, setas,
+     pinos de parada) caso o assets/css/route-overlay.css não carregue
+     no dev server (HMR bug observado em local). -->
 <style>
+/* ── Badge "IDA" / "VOLTA" no início de cada rota ──────── */
+.route-badge-wrap { background: transparent !important; border: none !important; }
+.route-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 7px;
+  border-radius: 999px;
+  color: #FFFFFF;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transform: translateX(-8px);
+}
+.route-badge__dot {
+  width: 6px;
+  height: 6px;
+  background: #FFFFFF;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.route-badge__text { line-height: 1; }
+
+/* ── Seta de ponta das polylines de Ida/Volta ────────── */
+.arrow-tip-wrap { background: transparent !important; border: none !important; }
+.arrow-tip {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+/* ── Pinos de ponto de parada (estilo do módulo Pontos) ── */
+.rp-stop-pin-wrap { background: transparent !important; border: none !important; }
+
 /* Bolinhas direcionais ao longo do trail do ativo (específico do Replay) */
 .trail-dot-wrap { background: transparent; border: none; }
 .trail-dot {
