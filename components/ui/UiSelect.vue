@@ -53,6 +53,7 @@
  *   Interface change: modelValue becomes string[] | v-model:modelValue[]
  */
 
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import { Search, ChevronDown } from 'lucide-vue-next'
 
 interface Option {

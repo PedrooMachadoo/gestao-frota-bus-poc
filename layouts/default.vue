@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   LayoutGrid,
   LogOut,
@@ -10,9 +10,11 @@ import {
   ScrollText,
   Code,
   Search,
+  Activity,
 } from 'lucide-vue-next'
 
-const route = useRoute()
+const route  = useRoute()
+const router = useRouter()
 
 // sidebar collapse
 const sidebarOpen = ref(true)
@@ -34,8 +36,9 @@ function toggleEmpresa() {
   }
 }
 
-// nav dropdowns
-const planejamentoOpen = ref(false)
+// Navega para o primeiro filho se ainda não estiver nesse grupo
+function clickPlanejamento()  { if (!isPlanejamentoActive.value)  router.push('/linhas') }
+function clickMonitoramento() { if (!isMonitoramentoActive.value) router.push('/ao-vivo') }
 
 // mini flyout
 interface FlyoutItem { label: string; to: string }
@@ -74,7 +77,8 @@ function isActive(to: string) {
   return route.path === to || route.path.startsWith(to + '/')
 }
 
-const isPlanejamentoActive = computed(() => isActive('/linhas') || isActive('/pontos'))
+const isPlanejamentoActive  = computed(() => isActive('/linhas') || isActive('/pontos'))
+const isMonitoramentoActive = computed(() => isActive('/ao-vivo') || isActive('/replay') || isActive('/sinotico'))
 
 function selectEmpresa(name: string) {
   selectedEmpresa.value = name
@@ -93,7 +97,6 @@ function onClickOutside(e: MouseEvent) {
 onMounted(() => {
   document.addEventListener('click', onClickOutside)
   document.addEventListener('click', onFlyoutOutside)
-  if (isActive('/linhas') || isActive('/pontos')) planejamentoOpen.value = true
 })
 onUnmounted(() => {
   document.removeEventListener('click', onClickOutside)
@@ -164,48 +167,44 @@ onUnmounted(() => {
         <div class="sidebar__group">
           <span v-if="sidebarOpen" class="sidebar__label">BUS</span>
 
-          <!-- Planejamento dropdown -->
+          <!-- Planejamento -->
           <button
             class="sidebar__bus-item"
-            :class="{ 'sidebar__bus-item--open': (planejamentoOpen || isPlanejamentoActive) && sidebarOpen, 'sidebar__bus-item--icon-active': !sidebarOpen && isPlanejamentoActive }"
+            :class="{ 'sidebar__bus-item--open': isPlanejamentoActive && sidebarOpen, 'sidebar__bus-item--icon-active': !sidebarOpen && isPlanejamentoActive }"
             :data-tooltip="!sidebarOpen && !flyout ? 'Planejamento' : undefined"
-            @click="sidebarOpen ? (planejamentoOpen = !planejamentoOpen) : openFlyout($event, { label: 'Planejamento', items: [{ label: 'Linha', to: '/linhas' }, { label: 'Ponto de Parada', to: '/pontos' }] })"
+            @click="sidebarOpen ? clickPlanejamento() : openFlyout($event, { label: 'Planejamento', items: [{ label: 'Linha', to: '/linhas' }, { label: 'Ponto de Parada', to: '/pontos' }] })"
           >
-            <span
-              class="s-icon"
-              :class="{
-                's-icon--on-active': (planejamentoOpen || isPlanejamentoActive) && sidebarOpen,
-                's-icon--standalone-active': !sidebarOpen && isPlanejamentoActive
-              }"
-            >
+            <span class="s-icon" :class="{ 's-icon--on-active': isPlanejamentoActive && sidebarOpen, 's-icon--standalone-active': !sidebarOpen && isPlanejamentoActive }">
               <LayoutGrid :size="15" />
             </span>
             <span v-if="sidebarOpen" class="s-text">Planejamento</span>
-            <component
-              :is="planejamentoOpen ? ChevronUp : ChevronDown"
-              v-if="sidebarOpen"
-              :size="11"
-              class="s-chevron"
-              :class="{ 's-chevron--active': planejamentoOpen || isPlanejamentoActive }"
-            />
+            <component :is="isPlanejamentoActive ? ChevronUp : ChevronDown" v-if="sidebarOpen" :size="11" class="s-chevron" :class="{ 's-chevron--active': isPlanejamentoActive }" />
           </button>
-
           <Transition name="sub">
-            <div v-if="sidebarOpen && planejamentoOpen" class="sidebar__sub">
-              <NuxtLink
-                to="/linhas"
-                class="sidebar__sub-item"
-                :class="{ 'sidebar__sub-item--active': isActive('/linhas') }"
-              >
-                Linha
-              </NuxtLink>
-              <NuxtLink
-                to="/pontos"
-                class="sidebar__sub-item"
-                :class="{ 'sidebar__sub-item--active': isActive('/pontos') }"
-              >
-                Ponto de Parada
-              </NuxtLink>
+            <div v-if="sidebarOpen && isPlanejamentoActive" class="sidebar__sub">
+              <NuxtLink to="/linhas" class="sidebar__sub-item" :class="{ 'sidebar__sub-item--active': isActive('/linhas') }">Linha</NuxtLink>
+              <NuxtLink to="/pontos" class="sidebar__sub-item" :class="{ 'sidebar__sub-item--active': isActive('/pontos') }">Ponto de Parada</NuxtLink>
+            </div>
+          </Transition>
+
+          <!-- Monitoramento -->
+          <button
+            class="sidebar__bus-item"
+            :class="{ 'sidebar__bus-item--open': isMonitoramentoActive && sidebarOpen, 'sidebar__bus-item--icon-active': !sidebarOpen && isMonitoramentoActive }"
+            :data-tooltip="!sidebarOpen && !flyout ? 'Monitoramento' : undefined"
+            @click="sidebarOpen ? clickMonitoramento() : openFlyout($event, { label: 'Monitoramento', items: [{ label: 'Ao vivo', to: '/ao-vivo' }, { label: 'Replay', to: '/replay' }, { label: 'Sinótico', to: '/sinotico' }] })"
+          >
+            <span class="s-icon" :class="{ 's-icon--on-active': isMonitoramentoActive && sidebarOpen, 's-icon--standalone-active': !sidebarOpen && isMonitoramentoActive }">
+              <Activity :size="15" />
+            </span>
+            <span v-if="sidebarOpen" class="s-text">Monitoramento</span>
+            <component :is="isMonitoramentoActive ? ChevronUp : ChevronDown" v-if="sidebarOpen" :size="11" class="s-chevron" :class="{ 's-chevron--active': isMonitoramentoActive }" />
+          </button>
+          <Transition name="sub">
+            <div v-if="sidebarOpen && isMonitoramentoActive" class="sidebar__sub">
+              <NuxtLink to="/ao-vivo" class="sidebar__sub-item" :class="{ 'sidebar__sub-item--active': isActive('/ao-vivo') }">Ao vivo</NuxtLink>
+              <NuxtLink to="/replay" class="sidebar__sub-item" :class="{ 'sidebar__sub-item--active': isActive('/replay') }">Replay</NuxtLink>
+              <NuxtLink to="/sinotico" class="sidebar__sub-item" :class="{ 'sidebar__sub-item--active': isActive('/sinotico') }">Sinótico</NuxtLink>
             </div>
           </Transition>
         </div>
@@ -229,11 +228,11 @@ onUnmounted(() => {
           <div class="sidebar__flags">
             <span>🇧🇷</span><span>🇺🇸</span><span>🇪🇸</span>
           </div>
-          <span class="sidebar__version">Versão 0.00.0</span>
+          <span class="sidebar__version">Versão 0.5.0</span>
           <span class="sidebar__email">email.usuario@mobs2.com</span>
           <hr class="sidebar__hr" />
         </template>
-        <span v-else class="sidebar__version-mini">0.00.0</span>
+        <span v-else class="sidebar__version-mini">0.5.0</span>
         <button class="sidebar__logout" :class="{ 'sidebar__logout--icon': !sidebarOpen }">
           <LogOut :size="15" />
           <span v-if="sidebarOpen">Sair</span>
