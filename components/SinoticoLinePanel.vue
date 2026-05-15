@@ -9,7 +9,7 @@
  *   4. Toolbar    — botão filtro + input de busca
  *   5. Lista      — checkbox + ícone de rota + texto, scrollável
  */
-import { ArrowDownUp, ChevronUp, ChevronDown, ListFilter, Search } from 'lucide-vue-next'
+import { ArrowDownUp, ChevronLeft, ListFilter, Search } from 'lucide-vue-next'
 import { mockLines } from '~/data/lines.mock'
 import type { Line } from '~/types'
 
@@ -31,8 +31,10 @@ const counts = computed(() => ({
   critica: classified.filter(l => l.tipo === 'critica').length,
 }))
 
-// ── Header collapse ──
-const tipoOpen = ref(true)
+// ── Collapse do painel inteiro (mesmo padrão do LiveFleetFilter no Ao Vivo)
+// Quando colapsado, o painel vira um "rail" estreito (48px) e esconde
+// o cabeçalho "Tipo de Linha", os cards e a seção "Lista de Linhas". */
+const collapsed = ref(false)
 
 // ── Tipo selecionado (no Figma "Normal" aparece selecionado) ──
 const tipoSel = ref<TipoLinha | null>('normal')
@@ -79,49 +81,51 @@ function fmtLabel(l: LineItem): string {
 </script>
 
 <template>
-  <aside class="slp">
+  <aside class="slp" :class="{ 'slp--collapsed': collapsed }">
     <!-- ── Header / Tipo de Linha ─────────────────────────────── -->
     <header class="slp__header">
       <div class="slp__title-row">
-        <ArrowDownUp :size="16" class="slp__title-icon" />
-        <h2 class="slp__title">Tipo de Linha</h2>
-        <button class="slp__chevron" :title="tipoOpen ? 'Recolher' : 'Expandir'" @click="tipoOpen = !tipoOpen">
-          <component :is="tipoOpen ? ChevronUp : ChevronDown" :size="18" />
+        <ArrowDownUp v-show="!collapsed" :size="16" class="slp__title-icon" />
+        <h2 v-show="!collapsed" class="slp__title">Tipo de Linha</h2>
+        <button
+          class="slp__chevron"
+          :title="collapsed ? 'Expandir' : 'Recolher'"
+          @click="collapsed = !collapsed"
+        >
+          <ChevronLeft :size="18" :style="{ transform: collapsed ? 'rotate(180deg)' : 'rotate(0deg)' }" />
         </button>
       </div>
 
-      <Transition name="slp-collapse">
-        <div v-if="tipoOpen" class="slp__cards">
-          <button
-            class="slp-card"
-            :class="{ 'slp-card--active': tipoSel === 'normal' }"
-            @click="toggleTipo('normal')"
-          >
-            <span class="slp-card__value">{{ fmtCount(counts.normal) }}</span>
-            <span class="slp-card__label">Normal</span>
-          </button>
-          <button
-            class="slp-card"
-            :class="{ 'slp-card--active': tipoSel === 'media' }"
-            @click="toggleTipo('media')"
-          >
-            <span class="slp-card__value">{{ fmtCount(counts.media) }}</span>
-            <span class="slp-card__label">Média</span>
-          </button>
-          <button
-            class="slp-card"
-            :class="{ 'slp-card--active': tipoSel === 'critica' }"
-            @click="toggleTipo('critica')"
-          >
-            <span class="slp-card__value">{{ fmtCount(counts.critica) }}</span>
-            <span class="slp-card__label">Crítica</span>
-          </button>
-        </div>
-      </Transition>
+      <div v-show="!collapsed" class="slp__cards">
+        <button
+          class="slp-card"
+          :class="{ 'slp-card--active': tipoSel === 'normal' }"
+          @click="toggleTipo('normal')"
+        >
+          <span class="slp-card__value">{{ fmtCount(counts.normal) }}</span>
+          <span class="slp-card__label">Normal</span>
+        </button>
+        <button
+          class="slp-card"
+          :class="{ 'slp-card--active': tipoSel === 'media' }"
+          @click="toggleTipo('media')"
+        >
+          <span class="slp-card__value">{{ fmtCount(counts.media) }}</span>
+          <span class="slp-card__label">Média</span>
+        </button>
+        <button
+          class="slp-card"
+          :class="{ 'slp-card--active': tipoSel === 'critica' }"
+          @click="toggleTipo('critica')"
+        >
+          <span class="slp-card__value">{{ fmtCount(counts.critica) }}</span>
+          <span class="slp-card__label">Crítica</span>
+        </button>
+      </div>
     </header>
 
     <!-- ── Lista de Linhas ─────────────────────────────────────── -->
-    <section class="slp__list">
+    <section v-show="!collapsed" class="slp__list">
       <div class="slp__title-row slp__title-row--sub">
         <ArrowDownUp :size="16" class="slp__title-icon" />
         <h3 class="slp__subtitle">Lista de Linhas</h3>
@@ -171,15 +175,32 @@ function fmtLabel(l: LineItem): string {
   height: 100%;
   display: flex;
   flex-direction: column;
-  background: rgba(255, 255, 255, 0.60);
-  backdrop-filter: blur(15px) saturate(160%);
-  -webkit-backdrop-filter: blur(15px) saturate(160%);
-  border: 3px solid #E8E8E8;
+  /* Fundo sólido (era glass com backdrop-filter blur 15px — caro de
+     renderizar continuamente). O painel agora "pesa" muito menos. */
+  background: #FFFFFF;
+  border: 1px solid var(--color-neutral-200, #E5E7EB);
   border-radius: 13px;
   box-shadow:
-    0 4px 4px rgba(0, 0, 0, 0.18),
-    4px 0 8px rgba(0, 0, 0, 0.12);
+    0 4px 12px rgba(0, 0, 0, 0.10),
+    0 2px 4px rgba(0, 0, 0, 0.06);
   overflow: hidden;
+  transition: width 200ms ease;
+}
+/* Painel colapsado: vira um "rail" estreito de 48px, mesmo padrão do
+   LiveFleetFilter do Ao Vivo. Conteúdo escondido via v-show; só o
+   botão chevron centralizado fica visível pra reabrir. */
+.slp--collapsed {
+  width: 48px;
+  height: auto;
+}
+.slp--collapsed .slp__header {
+  padding: 10px 0;
+  border-bottom: none;
+}
+.slp--collapsed .slp__title-row {
+  justify-content: center;
+  margin-bottom: 0;
+  gap: 0;
 }
 
 /* ── Header / Tipo de Linha ─────────────────────────────────── */
@@ -269,10 +290,12 @@ function fmtLabel(l: LineItem): string {
   line-height: 18px;
 }
 
+/* Estado SELECIONADO: usa o token `primary-active` (mesmo padrão do
+   Ao vivo — tab de modo selecionada, checkboxes marcados, etc.). */
 .slp-card--active,
 .slp-card--active:hover {
-  background: #091660;
-  border-color: #091660;
+  background: var(--color-action-primary-active);
+  border-color: var(--color-action-primary-active);
   color: var(--color-neutral-0);
 }
 
@@ -292,13 +315,15 @@ function fmtLabel(l: LineItem): string {
   margin-bottom: 8px;
 }
 
+/* Botão de ação (selecionável) → token `primary` + hover `primary-hover`,
+   mesmo padrão do FilterX no Ao vivo. */
 .slp__filter-btn {
   width: 28px;
   height: 28px;
   flex-shrink: 0;
   border: none;
   border-radius: 4px;
-  background: var(--color-action-blue);
+  background: var(--color-action-primary);
   color: var(--color-neutral-0);
   cursor: pointer;
   display: inline-flex;
@@ -306,7 +331,7 @@ function fmtLabel(l: LineItem): string {
   justify-content: center;
   transition: background var(--transition-fast);
 }
-.slp__filter-btn:hover { background: var(--color-action-blue-hover); }
+.slp__filter-btn:hover { background: var(--color-action-primary-hover); }
 
 .slp__search {
   position: relative;
@@ -327,7 +352,7 @@ function fmtLabel(l: LineItem): string {
   transition: border-color var(--transition-fast);
 }
 .slp__search-input::placeholder { color: var(--color-neutral-400); }
-.slp__search-input:focus { border-color: var(--color-action-blue); }
+.slp__search-input:focus { border-color: var(--color-action-primary); }
 .slp__search-icon {
   position: absolute;
   top: 50%;
@@ -376,9 +401,10 @@ function fmtLabel(l: LineItem): string {
   justify-content: center;
   transition: background var(--transition-fast), border-color var(--transition-fast);
 }
+/* Checkbox marcado → mesmo navy do Ao vivo (selecionado = primary-active). */
 .slp-item__check--on {
-  background: var(--color-action-blue);
-  border-color: var(--color-action-blue);
+  background: var(--color-action-primary-active);
+  border-color: var(--color-action-primary-active);
 }
 
 .slp-item__route {
@@ -404,14 +430,4 @@ function fmtLabel(l: LineItem): string {
   color: var(--color-neutral-500);
 }
 
-/* ── Collapse transition ────────────────────────────────────── */
-.slp-collapse-enter-active, .slp-collapse-leave-active {
-  transition: max-height 200ms ease, opacity 150ms ease;
-  max-height: 200px;
-  overflow: hidden;
-}
-.slp-collapse-enter-from, .slp-collapse-leave-to {
-  max-height: 0;
-  opacity: 0;
-}
 </style>
