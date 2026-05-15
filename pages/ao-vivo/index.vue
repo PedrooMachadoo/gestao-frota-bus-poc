@@ -33,6 +33,18 @@ const showPontosParada = ref(false)
 const showRaio         = ref(false)
 const showTransito     = ref(false)
 
+// ── Layout responsivo do summary (Ligado/Desligado/Off) ─────────
+// O card sempre fica centralizado no espaço livre entre o filtro (esquerda) e
+// os toggles (direita). Filtro expandido = 360px, recolhido = 48px; toggles
+// variam de altura conforme o modo (UO mostra 1 toggle, Linha mostra 3) — a
+// largura é medida com ResizeObserver pra cobrir qualquer mudança futura.
+const filterCollapsed = ref(false)
+const filterWidth = computed(() => filterCollapsed.value ? 48 : 360)
+
+const togglesEl = ref<HTMLElement | null>(null)
+const togglesWidth = ref(180)
+let togglesObserver: ResizeObserver | null = null
+
 // SVG base: remove tamanhos fixos, injeta classe pra CSS controlar tamanho.
 const vehicleSvgBase = veiculoSvgRaw
   .replace(/\swidth="\d+"/i,  '')
@@ -329,6 +341,18 @@ onMounted(async () => {
     // Re-aplica overlays caso já estejam ativos (ex.: HMR)
     routeOverlay.syncLinhas(activeLinhaIds.value)
   }, 150)
+
+  // Observa mudanças de largura do painel de toggles pra recentralizar o
+  // summary quando o número de toggles muda (UO ↔ Linha) ou em viewports
+  // variáveis.
+  if (togglesEl.value && typeof ResizeObserver !== 'undefined') {
+    togglesObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        togglesWidth.value = Math.ceil(entry.contentRect.width)
+      }
+    })
+    togglesObserver.observe(togglesEl.value)
+  }
 })
 
 onUnmounted(() => {
@@ -337,6 +361,8 @@ onUnmounted(() => {
   fleetLayer = null
   markers.clear()
   document.documentElement.style.removeProperty('--ao-vivo-icon-scale')
+  togglesObserver?.disconnect()
+  togglesObserver = null
   map?.remove()
   map = null
 })
@@ -353,16 +379,30 @@ onUnmounted(() => {
       </template>
     </PageHeader>
 
-    <div class="ao-vivo__body">
+    <div
+      class="ao-vivo__body"
+      :style="{
+        '--filter-w':  filterWidth + 'px',
+        '--toggles-w': togglesWidth + 'px',
+      }"
+    >
       <div id="ao-vivo-map" class="ao-vivo__map" />
       <LiveFleetFilter
+        v-model:collapsed="filterCollapsed"
         class="ao-vivo__filter"
         @update:selected="selectedIds = $event"
         @focus="focusVehicle"
         @highlight="onHighlight"
         @mode="onFilterMode"
       />
-      <LiveFleetSummary class="ao-vivo__summary" :selected-ids="selectedIds" />
+
+      <!-- Wrapper que ocupa o "vão" entre filtro e toggles e centraliza o
+           summary nesse espaço. As CSS vars `--filter-w` / `--toggles-w`
+           são atualizadas reativamente (filtro recolhido, mudança de modo
+           dos toggles, etc.), e o flex re-centra o card automaticamente. -->
+      <div class="ao-vivo__summary-wrap">
+        <LiveFleetSummary class="ao-vivo__summary" :selected-ids="selectedIds" />
+      </div>
 
       <!-- InfoBox do veículo em destaque (rodapé do mapa)
            Wrapper externo gerencia posicionamento absoluto; o componente
@@ -374,7 +414,7 @@ onUnmounted(() => {
       <!-- ── Painel de toggles do mapa (canto inf. dir.) ──────────
            Mesmo estilo gradiente do Replay. Pontos/Raio só em modo Linha;
            Trânsito sempre visível. -->
-      <div class="ao-vivo__toggles">
+      <div ref="togglesEl" class="ao-vivo__toggles">
         <label v-if="filterMode === 'linha'" class="rp-toggle">
           <input type="checkbox" v-model="showPontosParada" />
           <span class="rp-toggle__box"></span>
@@ -423,16 +463,29 @@ onUnmounted(() => {
   z-index: 500;
 }
 
-/* ── Top row ─────────────────────────────────────────
-   Filtro à esquerda (full-height), Summary à direita do filtro com gap
-   fixo dos Toggles. Anchor por `right` (e não centro calculado) garante
-   que o Summary nunca sobrepõe os Toggles em viewports < 1400px. */
-.ao-vivo__summary {
+/* ── Top row — Summary centralizado dinamicamente ────
+   Wrapper ocupa o "vão" entre filtro (esquerda) e toggles (direita), com
+   margens de respiro de 16px de cada lado. As CSS vars `--filter-w` e
+   `--toggles-w` são atualizadas reativamente (collapse do filtro, mudança
+   de modo dos toggles) e o flex re-centra o card sem JS adicional.
+
+   `pointer-events: none` no wrapper deixa cliques no espaço vazio
+   passarem para o mapa; o card interno restaura `auto`. */
+.ao-vivo__summary-wrap {
   position: absolute;
   top: 12px;
-  /* 220px = largura aprox. dos toggles (~180) + gap de 40px */
-  right: 220px;
+  left:  calc(12px + var(--filter-w, 360px)  + 16px);
+  right: calc(12px + var(--toggles-w, 180px) + 16px);
   z-index: 500;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  pointer-events: none;
+  transition: left 220ms ease, right 220ms ease;
+}
+.ao-vivo__summary-wrap > * {
+  pointer-events: auto;
+  max-width: 100%;
 }
 
 /* ── Toggles flutuantes (Pontos de parada / Raio / Trânsito) ──
@@ -507,10 +560,12 @@ onUnmounted(() => {
 .ao-vivo__infobox {
   position: absolute;
   bottom: 18px;
-  left: 384px;       /* após filtro + gap */
+  /* Encosta no filtro (qualquer largura — expandido/recolhido) + gap. */
+  left: calc(12px + var(--filter-w, 360px) + 12px);
   right: 12px;
   z-index: 500;
   pointer-events: none;
+  transition: left 220ms ease;
 }
 .ao-vivo__infobox > * {
   pointer-events: auto;

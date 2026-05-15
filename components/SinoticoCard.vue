@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /**
- * Card de uma linha no Sinótico (Figma node 2056:111852).
+ * Card de uma linha no Sinótico.
  *
  * Estrutura vertical:
  *   1. Cabeçalho (faixa azul escuro) — nome da linha + métricas + lixeira
@@ -8,7 +8,10 @@
  *      Timeline mostra dois trilhos paralelos:
  *        - superior (volta): seta verde
  *        - inferior (ida):   seta azul
- *      Cada veículo é um SVG de ônibus tingido pelo status + chip "9999" acima.
+ *      Cada veículo é um SVG 3D de ônibus (veiculo2) tingido pelo status,
+ *      com o código sobreposto no topo (label-chip).
+ *      Quando 2+ veículos compartilham um ponto da linha, formam um
+ *      "cluster" empilhado verticalmente sobre um marcador destacado.
  *   3. Rodapé: dois pills de alerta (Desvio de itinerário / Comboio)
  *
  * Regras de cor por status do veículo:
@@ -18,34 +21,74 @@
  *   off       → cinza   #9CA3AF
  */
 import { ArrowDownUp, Trash2, CloudOff, Bus } from 'lucide-vue-next'
-import veiculoSvgRaw from '~/components/ui/veiculo.svg?raw'
+import veiculo2SvgRaw from '~/components/ui/veiculo2.svg?raw'
 import type {
   SinoticoLinha,
+  TimelineVehicle,
   VehicleStatus,
   AlertLevel,
 } from '~/data/sinotico.mock'
 
-defineProps<{ linha: SinoticoLinha }>()
-const emit = defineEmits<{ remove: [id: string] }>()
-
-// Cores por status do veículo
+// ── Constantes em escopo de MÓDULO (computadas uma única vez,
+// compartilhadas por todas as instâncias do card). Antes: cada card
+// recompilava o SVG e fazia replaceAll em cada render — pesado quando
+// há vários cards e ~26 veículos por card. ─────────────────────────
 const STATUS: Record<VehicleStatus, { body: string; shadow: string; chip: string }> = {
-  ok:        { body: '#84CB33', shadow: '#5F981F', chip: '#84CB33' },
-  adiantado: { body: '#4D6AFE', shadow: '#2C46C8', chip: '#4D6AFE' },
-  atrasado:  { body: '#FF3B3B', shadow: '#B62525', chip: '#FF3B3B' },
-  off:       { body: '#9CA3AF', shadow: '#6B7280', chip: '#9CA3AF' },
+  ok:        { body: '#84CB33', shadow: '#4DA30D', chip: '#5F981F' },
+  adiantado: { body: '#4D6AFE', shadow: '#2C46C8', chip: '#1A45D6' },
+  atrasado:  { body: '#FF3B3B', shadow: '#B62525', chip: '#A11212' },
+  off:       { body: '#9CA3AF', shadow: '#6B7280', chip: '#4B5563' },
 }
 
-// SVG base — remove tamanhos e injeta classe para o CSS controlar
-const svgBase = veiculoSvgRaw
+const SVG_BASE = veiculo2SvgRaw
   .replace(/\swidth="\d+"/i,  '')
   .replace(/\sheight="\d+"/i, '')
   .replace('<svg', '<svg class="sin-bus__svg" preserveAspectRatio="xMidYMid meet"')
 
-function vehicleSvg(status: VehicleStatus): string {
-  const c = STATUS[status]
-  return svgBase.replaceAll('#84CB33', c.body).replaceAll('#5F981F', c.shadow)
+// Pré-tinge o SVG para cada um dos 4 status — lookup O(1) no render.
+const TINTED_SVG: Record<VehicleStatus, string> = {
+  ok:        SVG_BASE.replaceAll('#84CB33', STATUS.ok.body).replaceAll('#4DA30D', STATUS.ok.shadow),
+  adiantado: SVG_BASE.replaceAll('#84CB33', STATUS.adiantado.body).replaceAll('#4DA30D', STATUS.adiantado.shadow),
+  atrasado:  SVG_BASE.replaceAll('#84CB33', STATUS.atrasado.body).replaceAll('#4DA30D', STATUS.atrasado.shadow),
+  off:       SVG_BASE.replaceAll('#84CB33', STATUS.off.body).replaceAll('#4DA30D', STATUS.off.shadow),
 }
+
+function vehicleSvg(status: VehicleStatus): string {
+  return TINTED_SVG[status]
+}
+
+const props = defineProps<{ linha: SinoticoLinha }>()
+const emit = defineEmits<{ remove: [id: string] }>()
+
+// ── Cluster de veículos no mesmo ponto ──────────────────────────
+// Agrupamos por (direção + bin de 2.5%). Veículos no mesmo bin se
+// renderizam empilhados, sobre o mesmo marcador de parada destacado.
+const CLUSTER_BIN = 2.5
+
+interface BusCluster {
+  dir: 'ida' | 'volta'
+  pos: number              // posição média do cluster
+  vehicles: TimelineVehicle[]
+}
+
+function clusterize(timeline: TimelineVehicle[], dir: 'ida' | 'volta'): BusCluster[] {
+  const subset = timeline.filter(v => v.dir === dir).sort((a, b) => a.pos - b.pos)
+  const out: BusCluster[] = []
+  for (const v of subset) {
+    const last = out[out.length - 1]
+    if (last && Math.abs(last.pos - v.pos) <= CLUSTER_BIN) {
+      last.vehicles.push(v)
+      // recentraliza no centroide do cluster
+      last.pos = last.vehicles.reduce((s, x) => s + x.pos, 0) / last.vehicles.length
+    } else {
+      out.push({ dir, pos: v.pos, vehicles: [v] })
+    }
+  }
+  return out
+}
+
+const clustersVolta = computed(() => clusterize(props.linha.timeline, 'volta'))
+const clustersIda   = computed(() => clusterize(props.linha.timeline, 'ida'))
 
 // Cor do dot de alerta
 const ALERT_COLOR: Record<AlertLevel, string> = {
@@ -114,9 +157,11 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
           <span
             v-for="(c, i) in linha.offLeft"
             :key="`ol-${i}`"
-            class="sin-chip"
-            :style="{ backgroundColor: STATUS[c.status].chip }"
-          >{{ c.code }}</span>
+            class="sin-bus-chip"
+          >
+            <span class="sin-bus-chip__icon" v-html="vehicleSvg(c.status)" />
+            <span class="sin-bus-chip__code">{{ c.code }}</span>
+          </span>
         </div>
       </div>
 
@@ -130,51 +175,74 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
           <span
             v-for="(c, i) in linha.tp"
             :key="`tp-${i}`"
-            class="sin-chip"
-            :style="{ backgroundColor: STATUS[c.status].chip }"
-          >{{ c.code }}</span>
+            class="sin-bus-chip"
+          >
+            <span class="sin-bus-chip__icon" v-html="vehicleSvg(c.status)" />
+            <span class="sin-bus-chip__code">{{ c.code }}</span>
+          </span>
         </div>
       </div>
 
-      <!-- Timeline -->
+      <!-- Timeline — estrutura aprovada no Figma:
+             [trilho VOLTA (verde) com veículos]
+             [faixa título no MEIO com setas integradas nas pontas]
+             [trilho IDA (azul) com veículos]
+           As setas na faixa do título mostram o sentido de cada trilho. -->
       <div class="sin-line">
-        <div class="sin-line__title">{{ linha.name }}</div>
-
         <!-- Trilho volta (superior, verde) -->
         <div class="sin-rail sin-rail--volta">
           <span
-            v-for="n in linha.stops"
+            v-for="n in linha.stopsVolta"
             :key="`vt-${n}`"
             class="sin-rail__tick"
           />
-          <span class="sin-rail__arrow sin-rail__arrow--right" />
+
           <span
-            v-for="(v, i) in linha.timeline.filter(x => x.dir === 'volta')"
-            :key="`vv-${i}`"
-            class="sin-bus"
-            :style="{ left: `${v.pos}%` }"
+            v-for="(c, i) in clustersVolta"
+            :key="`vc-${i}`"
+            class="sin-bus-cluster"
+            :style="{ left: `${c.pos}%` }"
           >
-            <span class="sin-bus__code" :style="{ backgroundColor: STATUS[v.status].chip }">{{ v.code }}</span>
-            <span class="sin-bus__icon" v-html="vehicleSvg(v.status)" />
+            <span
+              v-for="(v, k) in c.vehicles"
+              :key="`vcv-${k}`"
+              class="sin-bus"
+            >
+              <span class="sin-bus__icon" v-html="vehicleSvg(v.status)" />
+              <span class="sin-bus__code">{{ v.code }}</span>
+            </span>
           </span>
+        </div>
+
+        <!-- Faixa título central com setas integradas -->
+        <div class="sin-line__title">
+          <span class="sin-line__arrow sin-line__arrow--ida" />
+          <span class="sin-line__title-text">{{ linha.name }}</span>
+          <span class="sin-line__arrow sin-line__arrow--volta" />
         </div>
 
         <!-- Trilho ida (inferior, azul) -->
         <div class="sin-rail sin-rail--ida">
           <span
-            v-for="n in linha.stops"
+            v-for="n in linha.stopsIda"
             :key="`it-${n}`"
             class="sin-rail__tick"
           />
-          <span class="sin-rail__arrow sin-rail__arrow--left" />
+
           <span
-            v-for="(v, i) in linha.timeline.filter(x => x.dir === 'ida')"
-            :key="`iv-${i}`"
-            class="sin-bus"
-            :style="{ left: `${v.pos}%` }"
+            v-for="(c, i) in clustersIda"
+            :key="`ic-${i}`"
+            class="sin-bus-cluster"
+            :style="{ left: `${c.pos}%` }"
           >
-            <span class="sin-bus__code" :style="{ backgroundColor: STATUS[v.status].chip }">{{ v.code }}</span>
-            <span class="sin-bus__icon" v-html="vehicleSvg(v.status)" />
+            <span
+              v-for="(v, k) in c.vehicles"
+              :key="`icv-${k}`"
+              class="sin-bus"
+            >
+              <span class="sin-bus__icon" v-html="vehicleSvg(v.status)" />
+              <span class="sin-bus__code">{{ v.code }}</span>
+            </span>
           </span>
         </div>
       </div>
@@ -189,9 +257,11 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
           <span
             v-for="(c, i) in linha.ts"
             :key="`ts-${i}`"
-            class="sin-chip"
-            :style="{ backgroundColor: STATUS[c.status].chip }"
-          >{{ c.code }}</span>
+            class="sin-bus-chip"
+          >
+            <span class="sin-bus-chip__icon" v-html="vehicleSvg(c.status)" />
+            <span class="sin-bus-chip__code">{{ c.code }}</span>
+          </span>
         </div>
       </div>
 
@@ -204,9 +274,11 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
           <span
             v-for="(c, i) in linha.offRight"
             :key="`or-${i}`"
-            class="sin-chip"
-            :style="{ backgroundColor: STATUS[c.status].chip }"
-          >{{ c.code }}</span>
+            class="sin-bus-chip"
+          >
+            <span class="sin-bus-chip__icon" v-html="vehicleSvg(c.status)" />
+            <span class="sin-bus-chip__code">{{ c.code }}</span>
+          </span>
         </div>
       </div>
     </div>
@@ -322,13 +394,13 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
 
 /* ── Terminal (TP/TS/off) ──────────────────────────────── */
 .sin-term {
-  width: 42px;
+  width: 68px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 4px 3px;
+  padding: 4px 3px 6px;
   border-radius: 6px;
 }
 
@@ -350,20 +422,49 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
 .sin-term__chips {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 2px;
+  align-items: center;
+  /* gap:0 — o crop do SVG já gera ~8px naturais de espaço entre os
+     corpos dos ônibus (pelas margens transparentes restantes). */
+  gap: 0;
   width: 100%;
 }
 
-.sin-chip {
+/* ── Chip do terminal: mesma unidade visual da timeline (SVG do ônibus
+   com código branco sobreposto). Consistência absoluta com a timeline. */
+/* Mesmo crop da timeline, escalonado pra largura do terminal. */
+.sin-bus-chip {
+  position: relative;
   display: block;
-  text-align: center;
-  font-size: 9px;
+  width: 60px;
+  height: 18px;
+  overflow: hidden;
+}
+.sin-bus-chip__icon {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  margin-top: -12px;
+}
+.sin-bus-chip__icon :deep(.sin-bus__svg) {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+.sin-bus-chip__code {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
   font-weight: 700;
-  line-height: 12px;
+  line-height: 1;
   color: #FFFFFF;
-  padding: 1px 2px;
-  border-radius: 2px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
 /* ── Timeline (linha branca com 2 trilhos) ─────────────── */
@@ -375,33 +476,67 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
   border-radius: 6px;
   background: #FFFFFF;
   border: 1px solid var(--color-neutral-200);
-  overflow: hidden;
+  /* Visible pra clusters maiores que o trilho não serem cortados */
+  overflow: visible;
   position: relative;
 }
 
+/* Faixa título central — fica ENTRE os 2 trilhos e leva as setas que
+   indicam o sentido de cada trilho (azul ← ida / verde → volta). */
 .sin-line__title {
-  height: 18px;
+  position: relative;
+  height: 22px;
   background: #0B1F47;
   color: #FFFFFF;
-  font-size: 10px;
-  font-weight: 500;
-  line-height: 18px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+}
+.sin-line__title-text {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.02em;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 0 4px;
+  padding: 0 24px;
+}
+.sin-line__arrow {
+  position: absolute;
+  top: 50%;
+  width: 0;
+  height: 0;
+  transform: translateY(-50%);
+}
+.sin-line__arrow--ida {
+  left: 4px;
+  border-top:    7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right:  9px solid #4D6AFE;
+}
+.sin-line__arrow--volta {
+  right: 4px;
+  border-top:    7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-left:   9px solid #84CB33;
 }
 
-/* Trilho — barra horizontal com ticks */
+/* Trilho — barra horizontal com ticks. Ida e Volta podem ter contagens
+   diferentes (rota real raramente é simétrica).
+   Setas direcionais foram realocadas pra faixa de título central (Figma),
+   por isso aqui não precisamos reservar espaço lateral pra setas. */
 .sin-rail {
   position: relative;
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 14px;
-  min-height: 34px;
+  padding: 0 6px;
+  /* Cluster máx (3 ônibus de 22px cada) ≈ 66px → 70px com pequena folga.
+     Listas maiores: o `.sinotico__main` já tem overflow-y auto. */
+  min-height: 70px;
 }
 
 .sin-rail__tick {
@@ -410,77 +545,100 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
   background: var(--color-neutral-300);
   border-radius: 1px;
   flex-shrink: 0;
+  position: relative;
+  z-index: 1;
 }
 
-/* Setas nos extremos (volta=verde dir, ida=azul esq) */
-.sin-rail__arrow {
-  position: absolute;
-  top: 50%;
-  width: 0;
-  height: 0;
-  transform: translateY(-50%);
-}
-.sin-rail--volta .sin-rail__arrow--right {
-  right: 2px;
-  border-top:    6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-left:   8px solid #61860A;
-}
-.sin-rail--ida .sin-rail__arrow--left {
-  left: 2px;
-  border-top:    6px solid transparent;
-  border-bottom: 6px solid transparent;
-  border-right:  8px solid #4D6AFE;
-}
+/* Sem track horizontal — apenas os ticks verticais (.sin-rail__tick)
+   marcam os pontos de parada. As setas direcionais ficam na faixa de
+   título central (verde p/ volta, azul p/ ida). */
 
-/* Linha guia central (track) */
-.sin-rail::before {
-  content: '';
-  position: absolute;
-  left: 14px;
-  right: 14px;
-  top: 50%;
-  height: 2px;
-  background: var(--color-neutral-200);
-  transform: translateY(-50%);
-  z-index: 0;
-}
-.sin-rail__tick { position: relative; z-index: 1; }
-
-/* Veículo na timeline = SVG + chip do código acima */
-.sin-bus {
+/* ── Cluster de veículos (1+ no mesmo ponto) ───────────────────────
+   Posicionado em `left: pos%` e centralizado verticalmente no trilho.
+   Cada veículo é uma "unidade visual" (chip-tag + ônibus). Quando há
+   2+ veículos no mesmo ponto, as unidades se empilham em coluna com
+   pequena separação pra cada chip ficar legível.
+   O traço escuro do ponto de parada vive no ::before — fica ATRÁS de
+   todas as unidades, transbordando 4px em cima/embaixo do cluster. */
+.sin-bus-cluster {
   position: absolute;
   top: 50%;
-  transform: translate(-50%, -50%);
   display: flex;
   flex-direction: column;
   align-items: center;
+  /* Sem gap: o margin-top negativo dos ônibus subsequentes controla
+     a sobreposição (fecha o vão transparente do SVG entre os corpos). */
   gap: 0;
-  z-index: 2;
+  transform: translate(-50%, -50%);
   pointer-events: none;
+  z-index: 5;
 }
-.sin-bus__code {
-  display: inline-block;
-  font-size: 8px;
-  font-weight: 700;
-  line-height: 11px;
-  color: #FFFFFF;
-  padding: 0 4px;
-  border-radius: 2px;
-  margin-bottom: -2px;
+/* Marker do ponto de parada: MESMO tamanho do tick comum do trilho
+   (14px), só com cor escura pra destacar. Não cresce mais com o
+   tamanho do cluster — assim o cluster pode encolher sem ser puxado
+   pelo marker. */
+.sin-bus-cluster::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 14px;
+  background: var(--color-neutral-800, #1F2937);
+  border-radius: 1px;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+}
+
+/* ── Veículo individual: o próprio SVG do ônibus É a "etiqueta",
+   com o código branco sobreposto no corpo. Sem chip retangular
+   separado — o SVG já carrega a cor do status.
+
+   ALINHAMENTO: o container tem aspect-ratio 1.684 (igual ao viewBox
+   do SVG 64×38) pra que o SVG enche o container sem sobra lateral —
+   assim o ônibus fica de fato centralizado horizontalmente. */
+/* Container compacto que mostra apenas o corpo do ônibus + pequena
+   margem (cropa o "ar" do viewBox do SVG via overflow:hidden). */
+.sin-bus {
+  position: relative;
+  display: block;
+  width: 80px;
+  height: 22px;
+  overflow: hidden;
+  z-index: 1;
 }
 .sin-bus__icon {
-  width: 24px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.25));
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  /* Crop: SVG renderiza no aspect natural e o margin-top negativo sobe
+     pra alinhar o corpo no centro do container.
+     OBS: removido o filter:drop-shadow porque o SVG já tem sombra interna
+     (feGaussianBlur) — duplicar filtros prejudica performance. */
+  margin-top: -17px;
 }
 .sin-bus :deep(.sin-bus__svg) {
   width: 100%;
-  height: 100%;
+  height: auto;
   display: block;
+}
+.sin-bus__code {
+  position: absolute;
+  /* Com o crop, o corpo do ônibus está centralizado dentro do container.
+     Então top:50% já cai no centro do corpo. */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  font-family: 'Inter', sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: #FFFFFF;
+  letter-spacing: 0;
+  white-space: nowrap;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.35);
 }
 
 /* ── Rodapé ────────────────────────────────────────────── */

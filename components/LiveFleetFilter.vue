@@ -42,7 +42,9 @@ function focusVehicle(v: FleetVehicle) {
 
 const mode = ref<Mode>('uo')
 const search = ref('')
-const collapsed = ref(false)
+// `collapsed` é exposto como v-model para o parent reagir (ex.: recentralizar
+// o summary do mapa em função do espaço disponível à esquerda).
+const collapsed = defineModel<boolean>('collapsed', { default: false })
 
 watch(mode, (m) => emit('mode', m), { immediate: true })
 
@@ -318,7 +320,15 @@ function vehicleSvg(status: FleetStatus): string {
   font-family: 'Inter', sans-serif;
   color: var(--color-neutral-900, #1F1F1F);
 }
-.lff--collapsed { width: 48px; }
+.lff--collapsed {
+  width: 48px;
+  /* Sem altura cheia quando recolhido — vira apenas um "rail" compacto,
+     deixando o mapa respirar atrás. */
+  height: auto;
+  border-bottom-left-radius: 13px;
+  border-bottom-right-radius: 13px;
+  transition: width 200ms ease;
+}
 
 /* ── Cabeçalho ──────────────────────────────────── */
 .lff__head {
@@ -328,6 +338,7 @@ function vehicleSvg(status: FleetStatus): string {
   padding: 10px 12px;
   border-bottom: 1px solid var(--color-neutral-150, #EFEFEF);
   flex-shrink: 0;
+  transition: padding 200ms ease, gap 200ms ease;
 }
 .lff__head-icon { color: var(--color-neutral-700, #4B5563); flex-shrink: 0; }
 .lff__head-title {
@@ -339,20 +350,35 @@ function vehicleSvg(status: FleetStatus): string {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.lff--collapsed .lff__head-title { display: none; }
+/* Estado recolhido: header vira um "rail" minimalista. Esconde título e
+   ícone-rótulo (redundantes em 48px) e centraliza só o chevron. */
+.lff--collapsed .lff__head {
+  padding: 10px 0;
+  gap: 0;
+  justify-content: center;
+  border-bottom: none;
+}
+.lff--collapsed .lff__head-title,
+.lff--collapsed .lff__head-icon { display: none; }
 .lff__collapse {
-  width: 24px; height: 24px;
+  width: 28px; height: 28px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border: none;
   background: transparent;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 6px;
   color: var(--color-neutral-700, #4B5563);
   flex-shrink: 0;
+  transition: background 120ms ease, color 120ms ease;
 }
-.lff__collapse:hover { background: var(--color-neutral-100, #F4F4F5); }
+.lff__collapse:hover {
+  background: var(--color-neutral-100, #F4F4F5);
+  color: var(--color-action-primary-active, #1A043B);
+}
+.lff--collapsed .lff__collapse { width: 32px; height: 32px; }
+.lff--collapsed .lff__collapse svg { transition: transform 200ms ease; }
 
 /* ── Body ───────────────────────────────────────── */
 .lff__body {
