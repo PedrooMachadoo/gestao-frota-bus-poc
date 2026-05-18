@@ -62,6 +62,7 @@ function removeCard(id: string) {
 .sinotico__main {
   flex: 1;
   min-width: 0;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -71,4 +72,10 @@ function removeCard(id: string) {
 }
 .sinotico__main::-webkit-scrollbar       { width: 8px; }
 .sinotico__main::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.18); border-radius: 4px; }
+
+/* Garante que cada card preserve a altura natural e não seja comprimido
+   pelo container flex — quando não couberem todos, .sinotico__main rola. */
+.sinotico__main > * {
+  flex-shrink: 0;
+}
 </style>
