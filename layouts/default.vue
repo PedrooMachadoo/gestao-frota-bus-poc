@@ -78,7 +78,7 @@ function isActive(to: string) {
 }
 
 const isPlanejamentoActive  = computed(() => isActive('/linhas') || isActive('/pontos'))
-const isMonitoramentoActive = computed(() => isActive('/ao-vivo') || isActive('/replay'))
+const isMonitoramentoActive = computed(() => isActive('/ao-vivo') || isActive('/replay') || isActive('/sinotico'))
 
 function selectEmpresa(name: string) {
   selectedEmpresa.value = name
@@ -192,7 +192,7 @@ onUnmounted(() => {
             class="sidebar__bus-item"
             :class="{ 'sidebar__bus-item--open': isMonitoramentoActive && sidebarOpen, 'sidebar__bus-item--icon-active': !sidebarOpen && isMonitoramentoActive }"
             :data-tooltip="!sidebarOpen && !flyout ? 'Monitoramento' : undefined"
-            @click="sidebarOpen ? clickMonitoramento() : openFlyout($event, { label: 'Monitoramento', items: [{ label: 'Ao vivo', to: '/ao-vivo' }, { label: 'Replay', to: '/replay' }] })"
+            @click="sidebarOpen ? clickMonitoramento() : openFlyout($event, { label: 'Monitoramento', items: [{ label: 'Ao vivo', to: '/ao-vivo' }, { label: 'Replay', to: '/replay' }, { label: 'Sinótico', to: '/sinotico' }] })"
           >
             <span class="s-icon" :class="{ 's-icon--on-active': isMonitoramentoActive && sidebarOpen, 's-icon--standalone-active': !sidebarOpen && isMonitoramentoActive }">
               <Activity :size="15" />
@@ -204,6 +204,7 @@ onUnmounted(() => {
             <div v-if="sidebarOpen && isMonitoramentoActive" class="sidebar__sub">
               <NuxtLink to="/ao-vivo" class="sidebar__sub-item" :class="{ 'sidebar__sub-item--active': isActive('/ao-vivo') }">Ao vivo</NuxtLink>
               <NuxtLink to="/replay" class="sidebar__sub-item" :class="{ 'sidebar__sub-item--active': isActive('/replay') }">Replay</NuxtLink>
+              <NuxtLink to="/sinotico" class="sidebar__sub-item" :class="{ 'sidebar__sub-item--active': isActive('/sinotico') }">Sinótico</NuxtLink>
             </div>
           </Transition>
         </div>
@@ -227,11 +228,11 @@ onUnmounted(() => {
           <div class="sidebar__flags">
             <span>🇧🇷</span><span>🇺🇸</span><span>🇪🇸</span>
           </div>
-          <span class="sidebar__version">Versão 0.3.0</span>
+          <span class="sidebar__version">Versão 0.5.0</span>
           <span class="sidebar__email">email.usuario@mobs2.com</span>
           <hr class="sidebar__hr" />
         </template>
-        <span v-else class="sidebar__version-mini">0.3.0</span>
+        <span v-else class="sidebar__version-mini">0.5.0</span>
         <button class="sidebar__logout" :class="{ 'sidebar__logout--icon': !sidebarOpen }">
           <LogOut :size="15" />
           <span v-if="sidebarOpen">Sair</span>

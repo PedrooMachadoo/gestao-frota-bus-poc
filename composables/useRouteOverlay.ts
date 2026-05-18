@@ -125,16 +125,39 @@ function stopPinIcon(L: any, tipo: StopTipo) {
 // criado, pra quem chama poder remover depois).
 // ──────────────────────────────────────────────────────────
 
-/** Desenha as duas polylines (Ida azul + Volta verde) com badges e setas. */
-export function drawLinhaPreview(L: any, map: any, linhaId: string): any {
+/** Opções de renderização do preview de linha. */
+export interface PreviewOptions {
+  /**
+   * Modo "minimal": só polylines (sem badges, setas e chevrons).
+   * Usado quando MÚLTIPLAS linhas são desenhadas simultaneamente
+   * (ex.: Ao vivo com várias linhas ativas) — evita poluição visual.
+   * Default: false (modo rich, com toda a decoração).
+   */
+  minimal?: boolean
+}
+
+/** Desenha as duas polylines (Ida azul + Volta verde). */
+export function drawLinhaPreview(
+  L: any,
+  map: any,
+  linhaId: string,
+  opts: PreviewOptions = {},
+): any {
   const seg   = getRouteForLinha(linhaId)
   const group = L.layerGroup().addTo(map)
 
-  L.polyline(seg.ida,   { color: IDA_COLOR,   weight: 5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(group)
-  L.polyline(seg.volta, { color: VOLTA_COLOR, weight: 5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }).addTo(group)
+  // Em minimal mode, linha mais fina + opacidade reduzida pra não dominar visualmente
+  const weight  = opts.minimal ? 4    : 5
+  const opacity = opts.minimal ? 0.7  : 0.95
 
-  // Setas nas pontas (direção da rota)
-  const idaEnd = seg.ida[seg.ida.length - 1]
+  L.polyline(seg.ida,   { color: IDA_COLOR,   weight, opacity, lineCap: 'round', lineJoin: 'round' }).addTo(group)
+  L.polyline(seg.volta, { color: VOLTA_COLOR, weight, opacity, lineCap: 'round', lineJoin: 'round' }).addTo(group)
+
+  // Em modo minimal, paramos aqui (sem badges/setas)
+  if (opts.minimal) return group
+
+  // ── Modo rich: setas nas pontas + badges IDA/VOLTA ──
+  const idaEnd  = seg.ida[seg.ida.length - 1]
   const idaPrev = seg.ida[seg.ida.length - 2]
   L.marker(idaEnd, {
     icon:        arrowTipIcon(L, IDA_COLOR, bearing(idaPrev, idaEnd)),
@@ -148,7 +171,6 @@ export function drawLinhaPreview(L: any, map: any, linhaId: string): any {
     interactive: false,
   }).addTo(group)
 
-  // Badges "IDA" / "VOLTA" no início de cada rota
   L.marker(seg.ida[0], {
     icon:         routeStartBadgeIcon(L, 'IDA', IDA_COLOR),
     interactive:  false,
@@ -220,8 +242,9 @@ export function drawLinhaFences(L: any, map: any, linhaId: string): any | null {
 export interface RouteOverlayManager {
   /** Configura Leaflet + map (chamado após onMounted do mapa). */
   init(L: any, map: any): void
-  /** Sincroniza o set de linhas com preview (Ida/Volta) visível. */
-  syncLinhas(linhaIds: string[]): void
+  /** Sincroniza o set de linhas com preview (Ida/Volta) visível.
+   *  `opts.minimal: true` desenha SÓ as polylines (uso em Ao vivo). */
+  syncLinhas(linhaIds: string[], opts?: PreviewOptions): void
   /** Sincroniza o set de linhas com pontos de parada visíveis. */
   syncStops(linhaIds: string[]): void
   /** Sincroniza o set de linhas com cercas (raio + polígono) visíveis. */
@@ -233,9 +256,10 @@ export interface RouteOverlayManager {
 export function createRouteOverlayManager(): RouteOverlayManager {
   let L: any = null
   let map: any = null
-  const linhas = new Map<string, any>()
-  const stops  = new Map<string, any>()
-  const fences = new Map<string, any>()
+  const linhas      = new Map<string, any>()
+  const stops       = new Map<string, any>()
+  const fences      = new Map<string, any>()
+  let   linhaOpts: PreviewOptions = {}
 
   function syncSet(
     wanted: string[],
@@ -266,7 +290,15 @@ export function createRouteOverlayManager(): RouteOverlayManager {
 
   return {
     init(_L, _map) { L = _L; map = _map },
-    syncLinhas(ids) { syncSet(ids, linhas, id => drawLinhaPreview(L, map, id)) },
+    syncLinhas(ids, opts) {
+      // Se as opções mudaram (ex.: minimal toggle), recria tudo
+      const newOpts = opts ?? {}
+      if (newOpts.minimal !== linhaOpts.minimal) {
+        clearAll(linhas)
+        linhaOpts = newOpts
+      }
+      syncSet(ids, linhas, id => drawLinhaPreview(L, map, id, linhaOpts))
+    },
     syncStops(ids)  { syncSet(ids, stops,  id => drawLinhaStops(L, map, id)) },
     syncFences(ids) { syncSet(ids, fences, id => drawLinhaFences(L, map, id)) },
     destroy() {
@@ -275,6 +307,7 @@ export function createRouteOverlayManager(): RouteOverlayManager {
       clearAll(fences)
       L = null
       map = null
+      linhaOpts = {}
     },
   }
 }

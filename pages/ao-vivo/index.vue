@@ -33,6 +33,18 @@ const showPontosParada = ref(false)
 const showRaio         = ref(false)
 const showTransito     = ref(false)
 
+// ── Layout responsivo do summary (Ligado/Desligado/Off) ─────────
+// O card sempre fica centralizado no espaço livre entre o filtro (esquerda) e
+// os toggles (direita). Filtro expandido = 360px, recolhido = 48px; toggles
+// variam de altura conforme o modo (UO mostra 1 toggle, Linha mostra 3) — a
+// largura é medida com ResizeObserver pra cobrir qualquer mudança futura.
+const filterCollapsed = ref(false)
+const filterWidth = computed(() => filterCollapsed.value ? 48 : 360)
+
+const togglesEl = ref<HTMLElement | null>(null)
+const togglesWidth = ref(180)
+let togglesObserver: ResizeObserver | null = null
+
 // SVG base: remove tamanhos fixos, injeta classe pra CSS controlar tamanho.
 const vehicleSvgBase = veiculoSvgRaw
   .replace(/\swidth="\d+"/i,  '')
@@ -79,6 +91,46 @@ function removeMarker(id: string) {
   if (m) {
     fleetLayer?.removeLayer(m)
     markers.delete(id)
+  }
+}
+
+/** Atualiza posição + ícone (heading) de um marker existente, sem recriar. */
+function updateMarker(v: FleetVehicle) {
+  const m = markers.get(v.id)
+  if (!m || !L) return
+  m.setLatLng(v.pos)
+  m.setIcon(L.divIcon({
+    html:       vehicleHtml(v),
+    className:  'ao-vivo-divicon',
+    iconSize:   [48, 30],
+    iconAnchor: [24, 15],
+  }))
+}
+
+/**
+ * Tick de atualização da frota (chamado quando o LiveRefreshIndicator
+ * dispara 'refresh', a cada REFRESH_INTERVAL segundos).
+ *
+ * Mock: jittera posição (~150–400 m) e heading (±30°) dos veículos visíveis,
+ * simulando movimento em tempo real. Quando houver fonte real (websocket /
+ * poll API), substituir pelo fetch dos dados de telemetria.
+ */
+function onTickRefresh() {
+  if (!L || !map) return
+  for (const v of mockFleet) {
+    if (!markers.has(v.id)) continue
+    // Jitter de ~150–400m em qualquer direção
+    const dLat = (Math.random() - 0.5) * 0.004
+    const dLng = (Math.random() - 0.5) * 0.004
+    v.pos = [v.pos[0] + dLat, v.pos[1] + dLng]
+    // Rotaciona heading em até 30° (qualquer direção)
+    v.heading = (v.heading + (Math.random() - 0.5) * 60 + 360) % 360
+    updateMarker(v)
+  }
+  // Se há ativo destacado, recoloca o callout na nova posição do veículo
+  if (highlightedId.value) {
+    const v = mockFleet.find(x => x.id === highlightedId.value)
+    if (v) showCallout(v)
   }
 }
 
@@ -191,7 +243,10 @@ watch(filterMode, (m) => {
   }
 })
 
-// Sincroniza overlays com o set de linhas ativas + estado dos toggles
+// Sincroniza overlays com o set de linhas ativas + estado dos toggles.
+// Mantém modo rich (com badges IDA/VOLTA + setas) — quando há várias
+// linhas ativas, cada uma tem suas próprias badges em posições distintas
+// (origem da Ida/Volta de cada linha).
 watch(activeLinhaIds, (ids) => {
   routeOverlay.syncLinhas(ids)
   if (showPontosParada.value) routeOverlay.syncStops(ids)
@@ -286,6 +341,18 @@ onMounted(async () => {
     // Re-aplica overlays caso já estejam ativos (ex.: HMR)
     routeOverlay.syncLinhas(activeLinhaIds.value)
   }, 150)
+
+  // Observa mudanças de largura do painel de toggles pra recentralizar o
+  // summary quando o número de toggles muda (UO ↔ Linha) ou em viewports
+  // variáveis.
+  if (togglesEl.value && typeof ResizeObserver !== 'undefined') {
+    togglesObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        togglesWidth.value = Math.ceil(entry.contentRect.width)
+      }
+    })
+    togglesObserver.observe(togglesEl.value)
+  }
 })
 
 onUnmounted(() => {
@@ -294,6 +361,8 @@ onUnmounted(() => {
   fleetLayer = null
   markers.clear()
   document.documentElement.style.removeProperty('--ao-vivo-icon-scale')
+  togglesObserver?.disconnect()
+  togglesObserver = null
   map?.remove()
   map = null
 })
@@ -303,19 +372,37 @@ onUnmounted(() => {
   <div class="ao-vivo-page">
     <PageHeader
       title="Monitoramento"
-      :tabs="[{ label: 'Ao vivo', to: '/ao-vivo' }, { label: 'Replay', to: '/replay' }]"
-    />
+      :tabs="[{ label: 'Ao vivo', to: '/ao-vivo' }, { label: 'Replay', to: '/replay' }, { label: 'Sinótico', to: '/sinotico' }]"
+    >
+      <template #title-right>
+        <LiveRefreshIndicator @refresh="onTickRefresh" />
+      </template>
+    </PageHeader>
 
-    <div class="ao-vivo__body">
+    <div
+      class="ao-vivo__body"
+      :style="{
+        '--filter-w':  filterWidth + 'px',
+        '--toggles-w': togglesWidth + 'px',
+      }"
+    >
       <div id="ao-vivo-map" class="ao-vivo__map" />
       <LiveFleetFilter
+        v-model:collapsed="filterCollapsed"
         class="ao-vivo__filter"
         @update:selected="selectedIds = $event"
         @focus="focusVehicle"
         @highlight="onHighlight"
         @mode="onFilterMode"
       />
-      <LiveFleetSummary class="ao-vivo__summary" :selected-ids="selectedIds" />
+
+      <!-- Wrapper que ocupa o "vão" entre filtro e toggles e centraliza o
+           summary nesse espaço. As CSS vars `--filter-w` / `--toggles-w`
+           são atualizadas reativamente (filtro recolhido, mudança de modo
+           dos toggles, etc.), e o flex re-centra o card automaticamente. -->
+      <div class="ao-vivo__summary-wrap">
+        <LiveFleetSummary class="ao-vivo__summary" :selected-ids="selectedIds" />
+      </div>
 
       <!-- InfoBox do veículo em destaque (rodapé do mapa)
            Wrapper externo gerencia posicionamento absoluto; o componente
@@ -327,7 +414,7 @@ onUnmounted(() => {
       <!-- ── Painel de toggles do mapa (canto inf. dir.) ──────────
            Mesmo estilo gradiente do Replay. Pontos/Raio só em modo Linha;
            Trânsito sempre visível. -->
-      <div class="ao-vivo__toggles">
+      <div ref="togglesEl" class="ao-vivo__toggles">
         <label v-if="filterMode === 'linha'" class="rp-toggle">
           <input type="checkbox" v-model="showPontosParada" />
           <span class="rp-toggle__box"></span>
@@ -376,27 +463,92 @@ onUnmounted(() => {
   z-index: 500;
 }
 
-/* ── Top row ─────────────────────────────────────────
-   Filtro à esquerda (full-height), Summary centralizado no espaço útil
-   (entre filtro e toggles), Toggles no canto sup. direito.
-   Constantes-âncora: filtro = 360 + 12 (margem) + 12 (gap) = 384px;
-                      toggles + margem ≈ 192px.                  */
-.ao-vivo__summary {
+/* ── Top row — Summary centralizado dinamicamente ────
+   Wrapper ocupa o "vão" entre filtro (esquerda) e toggles (direita), com
+   margens de respiro de 16px de cada lado. As CSS vars `--filter-w` e
+   `--toggles-w` são atualizadas reativamente (collapse do filtro, mudança
+   de modo dos toggles) e o flex re-centra o card sem JS adicional.
+
+   `pointer-events: none` no wrapper deixa cliques no espaço vazio
+   passarem para o mapa; o card interno restaura `auto`. */
+.ao-vivo__summary-wrap {
   position: absolute;
   top: 12px;
-  /* Centro do espaço entre filtro (384px da esquerda) e toggles (192px da direita) */
-  left: calc(384px + (100vw - 384px - 192px) / 2);
-  transform: translateX(-50%);
+  left:  calc(12px + var(--filter-w, 360px)  + 16px);
+  right: calc(12px + var(--toggles-w, 180px) + 16px);
   z-index: 500;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  pointer-events: none;
+  transition: left 220ms ease, right 220ms ease;
+}
+.ao-vivo__summary-wrap > * {
+  pointer-events: auto;
+  max-width: 100%;
 }
 
-/* Toggles flutuantes — canto SUPERIOR direito, alinhado com summary.
-   (estilo interno do cartão vem de assets/css/map-toggles.css) */
+/* ── Toggles flutuantes (Pontos de parada / Raio / Trânsito) ──
+   Estilos completos aqui pra garantir o visual mesmo se o CSS global
+   estiver com cache/HMR quebrado. Mesmas regras vivem em
+   assets/css/map-toggles.css para compartilhar com o Replay. */
 .ao-vivo__toggles {
   position: absolute;
   top: 12px;
   right: 12px;
   z-index: 500;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #2CC5C9 0%, #1F3A8A 55%, #0F1E3D 100%);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  font-family: 'Inter', sans-serif;
+}
+.ao-vivo__toggles .rp-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+.ao-vivo__toggles .rp-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.ao-vivo__toggles .rp-toggle__box {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #FFFFFF;
+  border-radius: 4px;
+  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 150ms ease;
+}
+.ao-vivo__toggles .rp-toggle input:checked + .rp-toggle__box {
+  background: #FFFFFF;
+}
+.ao-vivo__toggles .rp-toggle input:checked + .rp-toggle__box::after {
+  content: '';
+  width: 10px;
+  height: 6px;
+  border-left: 2px solid #1F3A8A;
+  border-bottom: 2px solid #1F3A8A;
+  transform: rotate(-45deg) translate(1px, -1px);
+}
+.ao-vivo__toggles .rp-toggle__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #FFFFFF;
+  white-space: nowrap;
+}
+.ao-vivo__toggles .rp-toggle:hover .rp-toggle__box {
+  border-color: rgba(255, 255, 255, 0.85);
 }
 
 /* InfoBox do veículo em destaque — RODAPÉ full-width após o filtro.
@@ -408,18 +560,64 @@ onUnmounted(() => {
 .ao-vivo__infobox {
   position: absolute;
   bottom: 18px;
-  left: 384px;       /* após filtro + gap */
+  /* Encosta no filtro (qualquer largura — expandido/recolhido) + gap. */
+  left: calc(12px + var(--filter-w, 360px) + 12px);
   right: 12px;
   z-index: 500;
   pointer-events: none;
+  transition: left 220ms ease;
 }
 .ao-vivo__infobox > * {
   pointer-events: auto;
 }
 </style>
 
-<!-- divIcon HTML é renderizado fora do escopo Vue → estilos globais -->
+<!-- divIcon HTML é renderizado fora do escopo Vue → estilos globais.
+     Inclui aqui os estilos dos overlays de itinerário (badges IDA/VOLTA,
+     setas, pinos de parada) como fallback caso o assets/css/route-overlay.css
+     não esteja sendo carregado pelo dev server (HMR bug observado em local). -->
 <style>
+/* ── Badge "IDA" / "VOLTA" no início de cada rota ──────── */
+.route-badge-wrap { background: transparent !important; border: none !important; }
+.route-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 7px;
+  border-radius: 999px;
+  color: #FFFFFF;
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+  border: 2px solid #FFFFFF;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+  transform: translateX(-8px);
+}
+.route-badge__dot {
+  width: 6px;
+  height: 6px;
+  background: #FFFFFF;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.route-badge__text { line-height: 1; }
+
+/* ── Seta de ponta das polylines de Ida/Volta ────────── */
+.arrow-tip-wrap { background: transparent !important; border: none !important; }
+.arrow-tip {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.25));
+}
+
+/* ── Pinos de ponto de parada (estilo do módulo Pontos) ── */
+.rp-stop-pin-wrap { background: transparent !important; border: none !important; }
+
 .ao-vivo-divicon {
   background: transparent !important;
   border: none !important;
