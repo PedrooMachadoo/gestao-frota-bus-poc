@@ -184,44 +184,13 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
       </div>
 
       <!-- Timeline — estrutura aprovada no Figma:
-             [trilho VOLTA (verde) com veículos]
-             [faixa título no MEIO com setas integradas nas pontas]
-             [trilho IDA (azul) com veículos]
-           As setas na faixa do título mostram o sentido de cada trilho. -->
+             [trilho IDA (top)   — fluxo esquerda → direita, ônibus olham p/ direita]
+             [faixa título central com setas integradas nas pontas]
+             [trilho VOLTA (bot) — fluxo direita → esquerda, ônibus olham p/ esquerda]
+           As setas na faixa do título mostram o sentido de cada trilho:
+             ← VOLTA (verde, à esquerda)   IDA (azul, à direita) → -->
       <div class="sin-line">
-        <!-- Trilho volta (superior, verde) -->
-        <div class="sin-rail sin-rail--volta">
-          <span
-            v-for="n in linha.stopsVolta"
-            :key="`vt-${n}`"
-            class="sin-rail__tick"
-          />
-
-          <span
-            v-for="(c, i) in clustersVolta"
-            :key="`vc-${i}`"
-            class="sin-bus-cluster"
-            :style="{ left: `${c.pos}%` }"
-          >
-            <span
-              v-for="(v, k) in c.vehicles"
-              :key="`vcv-${k}`"
-              class="sin-bus"
-            >
-              <span class="sin-bus__icon" v-html="vehicleSvg(v.status)" />
-              <span class="sin-bus__code">{{ v.code }}</span>
-            </span>
-          </span>
-        </div>
-
-        <!-- Faixa título central com setas integradas -->
-        <div class="sin-line__title">
-          <span class="sin-line__arrow sin-line__arrow--ida" />
-          <span class="sin-line__title-text">{{ linha.name }}</span>
-          <span class="sin-line__arrow sin-line__arrow--volta" />
-        </div>
-
-        <!-- Trilho ida (inferior, azul) -->
+        <!-- Trilho ida (SUPERIOR) — direção L→R, SVG na orientação natural -->
         <div class="sin-rail sin-rail--ida">
           <span
             v-for="n in linha.stopsIda"
@@ -238,6 +207,40 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
             <span
               v-for="(v, k) in c.vehicles"
               :key="`icv-${k}`"
+              class="sin-bus"
+            >
+              <span class="sin-bus__icon" v-html="vehicleSvg(v.status)" />
+              <span class="sin-bus__code">{{ v.code }}</span>
+            </span>
+          </span>
+        </div>
+
+        <!-- Faixa título central com setas integradas
+             ← seta esquerda  = VOLTA (verde)
+             → seta direita   = IDA (azul) -->
+        <div class="sin-line__title">
+          <span class="sin-line__arrow sin-line__arrow--volta" />
+          <span class="sin-line__title-text">{{ linha.name }}</span>
+          <span class="sin-line__arrow sin-line__arrow--ida" />
+        </div>
+
+        <!-- Trilho volta (INFERIOR) — direção R→L, SVG espelhado horizontalmente -->
+        <div class="sin-rail sin-rail--volta">
+          <span
+            v-for="n in linha.stopsVolta"
+            :key="`vt-${n}`"
+            class="sin-rail__tick"
+          />
+
+          <span
+            v-for="(c, i) in clustersVolta"
+            :key="`vc-${i}`"
+            class="sin-bus-cluster"
+            :style="{ left: `${c.pos}%` }"
+          >
+            <span
+              v-for="(v, k) in c.vehicles"
+              :key="`vcv-${k}`"
               class="sin-bus"
             >
               <span class="sin-bus__icon" v-html="vehicleSvg(v.status)" />
@@ -510,17 +513,21 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
   height: 0;
   transform: translateY(-50%);
 }
+/* IDA → fluxo da esquerda p/ direita (trilho SUPERIOR).
+   Seta colocada na ponta DIREITA do título, apontando p/ direita, em AZUL. */
 .sin-line__arrow--ida {
-  left: 4px;
-  border-top:    7px solid transparent;
-  border-bottom: 7px solid transparent;
-  border-right:  9px solid #4D6AFE;
-}
-.sin-line__arrow--volta {
   right: 4px;
   border-top:    7px solid transparent;
   border-bottom: 7px solid transparent;
-  border-left:   9px solid #84CB33;
+  border-left:   9px solid #4D6AFE;
+}
+/* VOLTA → fluxo da direita p/ esquerda (trilho INFERIOR).
+   Seta colocada na ponta ESQUERDA do título, apontando p/ esquerda, em VERDE. */
+.sin-line__arrow--volta {
+  left: 4px;
+  border-top:    7px solid transparent;
+  border-bottom: 7px solid transparent;
+  border-right:  9px solid #84CB33;
 }
 
 /* Trilho — barra horizontal com ticks. Ida e Volta podem ter contagens
@@ -622,6 +629,15 @@ function pct(n: number): string  { return `${n.toFixed(2).replace('.', ',')}%` }
   width: 100%;
   height: auto;
   display: block;
+}
+
+/* Direção do ônibus na timeline:
+   - Trilho IDA (superior): fluxo L→R; o SVG já aponta p/ direita (natural).
+   - Trilho VOLTA (inferior): fluxo R→L; espelha horizontalmente o SVG
+     pra que o ônibus aponte p/ esquerda, mantendo o código legível
+     (o code-overlay NÃO é espelhado). */
+.sin-rail--volta .sin-bus__icon {
+  transform: scaleX(-1);
 }
 .sin-bus__code {
   position: absolute;
