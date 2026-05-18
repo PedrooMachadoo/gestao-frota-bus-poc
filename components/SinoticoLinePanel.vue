@@ -25,6 +25,13 @@ const classified: LineItem[] = mockLines.map((l, i) => ({
   tipo: (['normal', 'media', 'critica'] as TipoLinha[])[i % 3],
 }))
 
+// v-model:selected — seleção das linhas (sincronizada com o pai
+// /sinotico, que gera 1 card no corpo pra cada linha selecionada).
+const selectedModel = defineModel<string[]>('selected', {
+  default: () => [],
+})
+const selectedSet = computed(() => new Set(selectedModel.value))
+
 const counts = computed(() => ({
   normal:  classified.filter(l => l.tipo === 'normal').length,
   media:   classified.filter(l => l.tipo === 'media').length,
@@ -45,15 +52,11 @@ function toggleTipo(t: TipoLinha) {
 // ── Busca ──
 const search = ref('')
 
-// ── Seleção ──
-const selectedIds = ref<Set<string>>(new Set(
-  // pré-seleciona algumas para refletir o screenshot
-  classified.filter(l => l.tipo === 'normal').slice(0, 3).map(l => l.id),
-))
+// ── Seleção ── (delegada ao v-model `selectedModel`)
 function toggleLine(id: string) {
-  const next = new Set(selectedIds.value)
+  const next = new Set(selectedModel.value)
   next.has(id) ? next.delete(id) : next.add(id)
-  selectedIds.value = next
+  selectedModel.value = Array.from(next)
 }
 
 // ── Lista filtrada ──
@@ -151,11 +154,11 @@ function fmtLabel(l: LineItem): string {
           v-for="line in filtered"
           :key="line.id"
           class="slp-item"
-          :class="{ 'slp-item--checked': selectedIds.has(line.id) }"
+          :class="{ 'slp-item--checked': selectedSet.has(line.id) }"
           @click="toggleLine(line.id)"
         >
-          <span class="slp-item__check" :class="{ 'slp-item__check--on': selectedIds.has(line.id) }">
-            <svg v-if="selectedIds.has(line.id)" width="10" height="10" viewBox="0 0 12 12" fill="none">
+          <span class="slp-item__check" :class="{ 'slp-item__check--on': selectedSet.has(line.id) }">
+            <svg v-if="selectedSet.has(line.id)" width="10" height="10" viewBox="0 0 12 12" fill="none">
               <path d="M2 6.5L4.8 9L10 3.5" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
           </span>

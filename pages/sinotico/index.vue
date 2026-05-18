@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { mockSinotico, type SinoticoLinha } from '~/data/sinotico.mock'
+import { mockLines } from '~/data/lines.mock'
+import { buildSinoticoForLine, type SinoticoLinha } from '~/data/sinotico.mock'
 
 definePageMeta({ layout: 'default', title: 'Monitoramento' })
 
@@ -10,11 +11,44 @@ const tabs = [
   { label: 'Sinótico', to: '/sinotico' },
 ]
 
-// ── Lista de linhas no corpo ──────────────────────────
-const cards = ref<SinoticoLinha[]>([...mockSinotico])
+// ── Classificação local (alinhada à do painel: idx%3) ──────────
+// Mesma fórmula usada no SinoticoLinePanel para que tipo / cor / cenário
+// fiquem coerentes entre painel e card.
+type TipoLinha = 'normal' | 'media' | 'critica'
+const tipoOf = (idx: number): TipoLinha =>
+  (['normal', 'media', 'critica'] as TipoLinha[])[idx % 3]
 
-function removeCard(id: string) {
-  cards.value = cards.value.filter(c => c.id !== id)
+// Formata "1007 - ORIGEM / DESTINO" (mesma fórmula do painel).
+function fmtLineLabel(idx: number): string {
+  const l = mockLines[idx]
+  const code = String(1000 + Number(l.id) * 7).slice(0, 4)
+  return `${code} - ${l.origin.toUpperCase()} / ${l.destination.toUpperCase()}`
+}
+
+// ── Seleção (v-model com o painel) ────────────────────
+// Pré-seleção inicial = primeiras 2 linhas Normais (idx % 3 === 0),
+// espelhando o estado padrão do painel.
+const selectedLineIds = ref<string[]>(
+  mockLines.filter((_, i) => i % 3 === 0).slice(0, 2).map(l => l.id),
+)
+
+// Cards visíveis = um por linha selecionada, gerados deterministicamente
+// a partir do id (mesma linha → mesmo card, sempre).
+const cards = computed<SinoticoLinha[]>(() => {
+  return selectedLineIds.value
+    .map(id => {
+      const idx = mockLines.findIndex(l => l.id === id)
+      if (idx === -1) return null
+      return buildSinoticoForLine(id, fmtLineLabel(idx), tipoOf(idx))
+    })
+    .filter((c): c is SinoticoLinha => c !== null)
+})
+
+// Remoção pelo botão de lixeira do card → desseleciona a linha no painel.
+function removeCard(sinId: string) {
+  // sinId tem o formato "sin-<lineId>"
+  const lineId = sinId.replace(/^sin-/, '')
+  selectedLineIds.value = selectedLineIds.value.filter(id => id !== lineId)
 }
 </script>
 
@@ -24,7 +58,7 @@ function removeCard(id: string) {
 
     <!-- ── Corpo: painel lateral à esquerda + área principal ── -->
     <div class="sinotico__body">
-      <SinoticoLinePanel class="sinotico__panel" />
+      <SinoticoLinePanel v-model:selected="selectedLineIds" class="sinotico__panel" />
 
       <div class="sinotico__main">
         <SinoticoCard
@@ -33,6 +67,14 @@ function removeCard(id: string) {
           :linha="linha"
           @remove="removeCard"
         />
+
+        <!-- Empty state — nenhuma linha selecionada no painel -->
+        <div v-if="cards.length === 0" class="sinotico__empty">
+          <p class="sinotico__empty-title">Selecione linhas no painel à esquerda</p>
+          <p class="sinotico__empty-sub">
+            Cada linha selecionada gera um card sinótico com a sua frota distribuída no itinerário.
+          </p>
+        </div>
       </div>
     </div>
   </div>
@@ -77,5 +119,25 @@ function removeCard(id: string) {
    pelo container flex — quando não couberem todos, .sinotico__main rola. */
 .sinotico__main > * {
   flex-shrink: 0;
+}
+
+/* ── Empty state ─────────────────────────────────────── */
+.sinotico__empty {
+  margin: auto;
+  max-width: 360px;
+  text-align: center;
+  padding: 32px 24px;
+  color: var(--color-neutral-500);
+}
+.sinotico__empty-title {
+  margin: 0 0 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-neutral-700);
+}
+.sinotico__empty-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
 }
 </style>
